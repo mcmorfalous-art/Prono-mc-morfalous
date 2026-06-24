@@ -226,6 +226,25 @@ header::after{
 .voted-note2{margin-top:8px;padding:12px;border-radius:10px;text-align:center;
   background:rgba(47,168,79,.12);border:1px solid rgba(47,168,79,.35);color:#7ee29a;
   font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.05em;font-weight:600;font-size:13px}
+
+/* classement */
+.rank-table{width:100%;border-collapse:collapse;font-size:14px}
+.rank-table th{text-align:center;padding:8px 4px;color:var(--bone-dim);
+  font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.06em;
+  font-size:11px;border-bottom:1px solid var(--line2)}
+.rank-table th:nth-child(2){text-align:left}
+.rank-table td{padding:11px 4px;border-bottom:1px solid var(--line);text-align:center;vertical-align:middle}
+.rk{color:var(--bone-dim);font-family:'Archivo Black',sans-serif;font-size:13px}
+.medal{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;
+  border-radius:50%;font-family:'Archivo Black',sans-serif;font-size:13px;color:#000}
+.medal.gold{background:linear-gradient(180deg,#ffd954,#d9a400)}
+.medal.silver{background:linear-gradient(180deg,#dfe7ee,#9aa9b6)}
+.medal.bronze{background:linear-gradient(180deg,#d98f54,#a8632f);color:#fff}
+.rk-name{text-align:left!important;font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  font-size:16px;text-transform:uppercase;color:#fff}
+.rk-sub{color:var(--bone-dim);font-size:13px;font-variant-numeric:tabular-nums}
+.rk-total{font-family:'Archivo Black',sans-serif;font-size:16px;color:var(--cyan);
+  font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -432,11 +451,129 @@ async function renderHome(session){
 function switchView(view){
   const v = document.getElementById('view');
   if(view === 'admin'){ return renderAdmin(v); }
-  if(view === 'classement'){
-    v.innerHTML = `<div class="card"><div class="placeholder">Le classement arrivera une fois les premiers pronostics et résultats enregistrés.</div></div>`;
-    return;
-  }
+  if(view === 'classement'){ return renderClassement(v); }
   return renderPronos(v);
+}
+
+// ====== MOTEUR DE POINTS ======
+function scoreManche(prono, resultat){
+  if(!prono || !resultat) return 0;
+  const reel = [resultat.p1_pilote_id, resultat.p2_pilote_id, resultat.p3_pilote_id];
+  const mien = [prono.p1_pilote_id, prono.p2_pilote_id, prono.p3_pilote_id];
+  let bien=0, bons=0;
+  mien.forEach((pid,i)=>{ if(pid && pid===reel[i]) bien++; });
+  mien.forEach(pid=>{ if(pid && reel.includes(pid)) bons++; });
+  let pts=0;
+  if(bons===3) pts = (bien===3)?15:12;
+  else if(bons===2) pts = (bien===2)?10:(bien===1?9:8);
+  else if(bons===1) pts = (bien===1)?5:3;
+  if(prono.joue_bonus5){
+    if(prono.p5_pilote_id && resultat.p5_pilote_id && prono.p5_pilote_id===resultat.p5_pilote_id) pts*=2;
+    else pts-=3;
+  }
+  return pts;
+}
+function scoreChamp(prono, resultat){
+  if(!prono || !resultat) return 0;
+  const reel = [resultat.p1_pilote_id, resultat.p2_pilote_id, resultat.p3_pilote_id];
+  const mien = [prono.p1_pilote_id, prono.p2_pilote_id, prono.p3_pilote_id];
+  let bien=0, bons=0;
+  mien.forEach((pid,i)=>{ if(pid && pid===reel[i]) bien++; });
+  mien.forEach(pid=>{ if(pid && reel.includes(pid)) bons++; });
+  let pts=0;
+  if(bons===3) pts=(bien===3)?30:24;
+  else if(bons===2) pts=(bien===2)?20:(bien===1?18:16);
+  else if(bons===1) pts=(bien===1)?10:6;
+  if(prono.joue_bonus5){
+    if(prono.p5_pilote_id && resultat.p5_pilote_id && prono.p5_pilote_id===resultat.p5_pilote_id) pts*=3;
+    else pts-=15;
+  }
+  return pts;
+}
+
+// ====== VUE CLASSEMENT ======
+let classState = { cat:'global' };
+
+async function renderClassement(v){
+  v.innerHTML = `<div class="card"><div class="loading">Calcul des classements…</div></div>`;
+
+  // tout charger
+  const [profilsR, pronosR, resultatsR, pchampR, rchampR] = await Promise.all([
+    sb.from('profils').select('id,pseudo'),
+    sb.from('pronos').select('*'),
+    sb.from('resultats').select('*'),
+    sb.from('pronos_championnat').select('*'),
+    sb.from('resultat_championnat').select('*'),
+  ]);
+  const profils = profilsR.data||[];
+  const pronos = pronosR.data||[];
+  const resultats = resultatsR.data||[];
+  const pchamp = pchampR.data||[];
+  const rchamp = rchampR.data||[];
+
+  // index résultats par manche+cat
+  const resByKey = {};
+  resultats.forEach(r=> resByKey[r.manche_id+'-'+r.categorie]=r);
+  const rchampByCat = {};
+  rchamp.forEach(r=> rchampByCat[r.categorie]=r);
+
+  // points par joueur et par catégorie
+  const pts = {}; // pts[userId] = {250:x, 450:y}
+  profils.forEach(p=> pts[p.id]={'250':0,'450':0});
+
+  // points manches
+  pronos.forEach(pr=>{
+    const res = resByKey[pr.manche_id+'-'+pr.categorie];
+    if(res && pts[pr.user_id]) pts[pr.user_id][pr.categorie] += scoreManche(pr, res);
+  });
+  // points championnat
+  pchamp.forEach(pc=>{
+    const res = rchampByCat[pc.categorie];
+    if(res && pts[pc.user_id] && pc.valide) pts[pc.user_id][pc.categorie] += scoreChamp(pc, res);
+  });
+
+  // construire le classement selon la catégorie choisie
+  const cat = classState.cat;
+  const ranked = profils.map(p=>{
+    const p250 = pts[p.id]['250'], p450 = pts[p.id]['450'];
+    const total = cat==='250'?p250 : cat==='450'?p450 : (p250+p450);
+    return { pseudo:p.pseudo, p250, p450, total };
+  }).sort((a,b)=> b.total - a.total);
+
+  const hasAnyResult = resultats.length>0 || rchamp.length>0;
+
+  v.innerHTML = `
+    <div class="card">
+      <div class="subnav">
+        <button class="sub-btn ${cat==='global'?'active':''}" data-cat="global">Général</button>
+        <button class="sub-btn ${cat==='450'?'active':''}" data-cat="450">450</button>
+        <button class="sub-btn ${cat==='250'?'active':''}" data-cat="250">250</button>
+      </div>
+      ${!hasAnyResult ? '<div class="placeholder">Aucun résultat saisi pour le moment. Le classement apparaîtra dès le premier résultat de manche enregistré.</div>'
+      : ranked.length===0 ? '<div class="placeholder">Aucun joueur inscrit pour le moment.</div>'
+      : `<table class="rank-table">
+          <thead><tr><th>#</th><th>Pilote</th><th>${cat==='global'?'450':''}</th><th>${cat==='global'?'250':''}</th><th>Pts</th></tr></thead>
+          <tbody>${ranked.map((r,i)=>rankRow(r,i,cat)).join('')}</tbody>
+        </table>`}
+    </div>
+  `;
+  v.querySelectorAll('.sub-btn').forEach(b=>{
+    b.onclick = ()=>{ classState.cat=b.dataset.cat; renderClassement(v); };
+  });
+}
+
+function rankRow(r, i, cat){
+  const medal = i===0?'gold':i===1?'silver':i===2?'bronze':'';
+  const rankBadge = i<3 ? `<span class="medal ${medal}">${i+1}</span>` : `<span class="rk">${i+1}</span>`;
+  const extra = cat==='global'
+    ? `<td class="rk-sub">${r.p450}</td><td class="rk-sub">${r.p250}</td>`
+    : `<td></td><td></td>`;
+  return `<tr>
+    <td>${rankBadge}</td>
+    <td class="rk-name">${r.pseudo}</td>
+    ${extra}
+    <td class="rk-total">${r.total}</td>
+  </tr>`;
 }
 
 // ====== DONNÉES partagées ======
