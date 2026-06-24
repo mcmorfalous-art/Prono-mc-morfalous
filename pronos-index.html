@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pronos MC Les Morfalous</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --night:#0a1622; --night2:#0f2032; --steel:#16344f;
+  --bone:#eef4fa; --bone-dim:#8fa6bb;
+  --cyan:#1ea7e1; --cyan-deep:#0d6fa8; --red:#e23b2e;
+  --line:#1d3a49; --line2:#1d3a52;
+  --green:#2fa84f;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:var(--night);
+  background-image:
+    radial-gradient(ellipse at 20% 0%,rgba(30,167,225,.12),transparent 50%),
+    radial-gradient(ellipse at 90% 100%,rgba(226,59,46,.07),transparent 55%);
+  color:var(--bone); font-family:'Barlow',sans-serif;
+  min-height:100vh; padding:24px 16px 60px;
+}
+.wrap{max-width:440px;margin:0 auto}
+
+/* header */
+header{text-align:center;margin:10px 0 26px}
+.eyebrow{
+  font-family:'Barlow Condensed',sans-serif;letter-spacing:.32em;
+  text-transform:uppercase;font-size:12px;font-weight:600;color:var(--cyan);margin-bottom:6px;
+}
+h1{
+  font-family:'Archivo Black',sans-serif;font-size:clamp(30px,8vw,44px);
+  line-height:.92;text-transform:uppercase;letter-spacing:-.02em;
+  background:linear-gradient(180deg,var(--bone),#7fb4d6);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.tagline{color:var(--bone-dim);font-size:14px;margin-top:8px}
+
+/* carte */
+.card{
+  background:linear-gradient(180deg,var(--night2),var(--night));
+  border:1px solid var(--line2);border-radius:18px;
+  padding:24px 22px;box-shadow:0 16px 50px rgba(0,0,0,.45);
+}
+
+/* onglets */
+.tabs{display:flex;gap:6px;margin-bottom:22px;background:var(--night);
+  border:1px solid var(--line);border-radius:12px;padding:4px}
+.tab{
+  flex:1;padding:10px;border:none;background:none;cursor:pointer;border-radius:9px;
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;
+  text-transform:uppercase;letter-spacing:.08em;color:var(--bone-dim);
+}
+.tab.active{background:linear-gradient(180deg,var(--cyan),var(--cyan-deep));color:#fff}
+
+/* champs */
+.field{margin-bottom:14px}
+.field label{
+  display:block;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;
+  letter-spacing:.08em;font-size:12px;font-weight:600;color:var(--bone-dim);margin-bottom:5px;
+}
+.field input{
+  width:100%;padding:12px 14px;border-radius:11px;
+  background:var(--night);border:1.5px solid var(--line2);
+  color:var(--bone);font-family:'Barlow',sans-serif;font-size:15px;
+}
+.field input:focus{outline:none;border-color:var(--cyan)}
+.row2{display:flex;gap:10px}
+.row2 .field{flex:1}
+
+.btn{
+  width:100%;padding:13px;border-radius:11px;border:none;cursor:pointer;margin-top:6px;
+  background:linear-gradient(180deg,var(--cyan),var(--cyan-deep));color:#fff;
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  text-transform:uppercase;letter-spacing:.1em;font-size:16px;
+}
+.btn:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.5;cursor:not-allowed;filter:none}
+
+.msg{margin-top:14px;padding:11px 14px;border-radius:10px;font-size:13.5px;
+  text-align:center;line-height:1.4;display:none}
+.msg.show{display:block}
+.msg.err{background:rgba(226,59,46,.12);border:1px solid rgba(226,59,46,.35);color:#ff8a80}
+.msg.ok{background:rgba(47,168,79,.12);border:1px solid rgba(47,168,79,.35);color:#7ee29a}
+
+.hint{font-size:12px;color:var(--bone-dim);margin-top:4px;line-height:1.35}
+.forgot{background:none;border:none;color:var(--cyan);cursor:pointer;font-size:13px;
+  margin-top:12px;display:block;width:100%;text-align:center;font-family:'Barlow',sans-serif}
+.forgot:hover{text-decoration:underline}
+
+/* écran connecté (provisoire) */
+.welcome{text-align:center;padding:20px 0}
+.welcome .big{font-family:'Archivo Black',sans-serif;font-size:26px;margin:10px 0;text-transform:uppercase}
+.welcome .sub{color:var(--bone-dim);font-size:15px;line-height:1.5;margin-bottom:20px}
+.badge-admin{display:inline-block;margin-top:6px;padding:4px 12px;border-radius:999px;
+  background:rgba(226,59,46,.15);border:1px solid var(--red);color:#ff8a80;
+  font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.1em;font-size:12px;font-weight:700}
+.btn-ghost{background:none;border:1px solid var(--line2);color:var(--bone-dim);
+  padding:10px 18px;border-radius:10px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;
+  text-transform:uppercase;letter-spacing:.08em;font-size:13px;margin-top:8px}
+.btn-ghost:hover{border-color:var(--cyan);color:var(--cyan)}
+
+.loading{text-align:center;color:var(--bone-dim);padding:40px 0;font-size:15px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">MC Les Morfalous</div>
+    <h1>Pronos<br>Motocross</h1>
+    <div class="tagline">Le jeu de pronostics du club · AMA Pro Motocross</div>
+  </header>
+
+  <div id="app">
+    <div class="loading">Chargement…</div>
+  </div>
+</div>
+
+<script>
+// ====== CONFIG SUPABASE ======
+const SUPABASE_URL = "https://ogfjljemwoeavqiagnhj.supabase.co";
+const SUPABASE_KEY = "sb_publishable_LQg-9wRHZRHxO6EVdx7UAg_l0bECQjc";
+const CODE_CLUB = "MORFALOUS2026";
+
+let sb = null;
+try {
+  if(!window.supabase || !window.supabase.createClient) throw new Error("Composant Supabase non chargé.");
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+} catch(e){
+  document.getElementById('app').innerHTML =
+    `<div class="msg err show">${e.message} Recharge la page (Ctrl+Maj+R).</div>`;
+}
+
+const app = document.getElementById('app');
+
+// ====== ÉCRAN AUTH (connexion / inscription) ======
+let mode = 'login';
+
+function renderAuth(){
+  app.innerHTML = `
+    <div class="card">
+      <div class="tabs">
+        <button class="tab ${mode==='login'?'active':''}" id="tabLogin">Se connecter</button>
+        <button class="tab ${mode==='signup'?'active':''}" id="tabSignup">S'inscrire</button>
+      </div>
+      ${mode==='login' ? loginForm() : signupForm()}
+      <div class="msg" id="msg"></div>
+    </div>
+  `;
+  document.getElementById('tabLogin').onclick = ()=>{ mode='login'; renderAuth(); };
+  document.getElementById('tabSignup').onclick = ()=>{ mode='signup'; renderAuth(); };
+
+  if(mode==='login'){
+    document.getElementById('btnLogin').onclick = doLogin;
+    document.getElementById('forgot').onclick = doForgot;
+  } else {
+    document.getElementById('btnSignup').onclick = doSignup;
+  }
+}
+
+function loginForm(){
+  return `
+    <div class="field">
+      <label>Email</label>
+      <input id="li_email" type="email" autocomplete="email" placeholder="ton@email.fr">
+    </div>
+    <div class="field">
+      <label>Mot de passe</label>
+      <input id="li_pwd" type="password" autocomplete="current-password" placeholder="••••••••">
+    </div>
+    <button class="btn" id="btnLogin">Se connecter</button>
+    <button class="forgot" id="forgot">Mot de passe oublié ?</button>
+  `;
+}
+
+function signupForm(){
+  return `
+    <div class="field">
+      <label>Pseudo (visible au classement)</label>
+      <input id="su_pseudo" type="text" maxlength="30" placeholder="Ton pseudo">
+    </div>
+    <div class="row2">
+      <div class="field"><label>Prénom</label><input id="su_prenom" type="text" placeholder="Prénom"></div>
+      <div class="field"><label>Nom</label><input id="su_nom" type="text" placeholder="Nom"></div>
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input id="su_email" type="email" autocomplete="email" placeholder="ton@email.fr">
+    </div>
+    <div class="field">
+      <label>Mot de passe</label>
+      <input id="su_pwd" type="password" autocomplete="new-password" placeholder="6 caractères minimum">
+    </div>
+    <div class="field">
+      <label>Code club</label>
+      <input id="su_code" type="text" placeholder="Code réservé aux licenciés">
+      <div class="hint">Ce code t'est communiqué par le club. Sans lui, pas d'inscription.</div>
+    </div>
+    <button class="btn" id="btnSignup">Créer mon compte</button>
+  `;
+}
+
+function showMsg(text, type){
+  const m = document.getElementById('msg');
+  m.textContent = text;
+  m.className = 'msg show ' + type;
+}
+
+// ====== ACTIONS ======
+async function doSignup(){
+  const pseudo = val('su_pseudo'), prenom = val('su_prenom'), nom = val('su_nom');
+  const email = val('su_email'), pwd = val('su_pwd'), code = val('su_code');
+
+  if(code !== CODE_CLUB) return showMsg("Code club incorrect. Demande-le au club.", 'err');
+  if(pseudo.length < 2) return showMsg("Choisis un pseudo d'au moins 2 caractères.", 'err');
+  if(!email.includes('@')) return showMsg("Entre un email valide.", 'err');
+  if(pwd.length < 6) return showMsg("Le mot de passe doit faire au moins 6 caractères.", 'err');
+
+  const btn = document.getElementById('btnSignup');
+  btn.disabled = true; showMsg("Création du compte…", 'ok');
+
+  // 1) créer le compte Auth
+  const { data, error } = await sb.auth.signUp({ email, password: pwd });
+  if(error){ btn.disabled=false; return showMsg(traduitErreur(error.message), 'err'); }
+
+  const uid = data.user?.id;
+  // 2) créer le profil (pseudo + nom/prénom)
+  if(uid){
+    const { error: e2 } = await sb.from('profils').insert({
+      id: uid, pseudo, nom, prenom
+    });
+    if(e2){
+      btn.disabled=false;
+      if(e2.message.includes('duplicate') || e2.message.includes('unique'))
+        return showMsg("Ce pseudo est déjà pris, choisis-en un autre.", 'err');
+      return showMsg("Compte créé mais souci de profil : " + e2.message, 'err');
+    }
+  }
+
+  // selon config Supabase, une confirmation email peut être requise
+  if(data.session){
+    boot(); // connecté direct
+  } else {
+    showMsg("Compte créé ! Vérifie tes emails pour confirmer ton adresse, puis connecte-toi.", 'ok');
+    mode='login';
+    setTimeout(renderAuth, 2500);
+  }
+}
+
+async function doLogin(){
+  const email = val('li_email'), pwd = val('li_pwd');
+  if(!email || !pwd) return showMsg("Entre ton email et ton mot de passe.", 'err');
+  const btn = document.getElementById('btnLogin');
+  btn.disabled = true; showMsg("Connexion…", 'ok');
+  const { error } = await sb.auth.signInWithPassword({ email, password: pwd });
+  if(error){ btn.disabled=false; return showMsg(traduitErreur(error.message), 'err'); }
+  boot();
+}
+
+async function doForgot(){
+  const email = val('li_email');
+  if(!email) return showMsg("Entre d'abord ton email ci-dessus, puis reclique.", 'err');
+  const { error } = await sb.auth.resetPasswordForEmail(email);
+  if(error) return showMsg(traduitErreur(error.message), 'err');
+  showMsg("Email de réinitialisation envoyé (vérifie tes spams).", 'ok');
+}
+
+function traduitErreur(m){
+  if(m.includes('already registered')) return "Cet email a déjà un compte. Connecte-toi.";
+  if(m.includes('Invalid login')) return "Email ou mot de passe incorrect.";
+  if(m.includes('Email not confirmed')) return "Confirme d'abord ton email (vérifie tes mails).";
+  if(m.includes('rate limit')) return "Trop de tentatives, réessaie dans un moment.";
+  return m;
+}
+
+const val = id => (document.getElementById(id)?.value || '').trim();
+
+// ====== ÉCRAN CONNECTÉ (provisoire) ======
+async function renderHome(session){
+  app.innerHTML = `<div class="card"><div class="loading">Chargement de ton profil…</div></div>`;
+  const uid = session.user.id;
+  const { data: profil } = await sb.from('profils').select('*').eq('id', uid).single();
+
+  const isAdmin = profil?.is_admin;
+  app.innerHTML = `
+    <div class="card welcome">
+      <div class="eyebrow">Connecté</div>
+      <div class="big">Salut ${profil?.pseudo || ''} !</div>
+      ${isAdmin ? '<div class="badge-admin">★ Administrateur</div>' : ''}
+      <div class="sub">Ton compte est prêt. Les pronostics arrivent très bientôt —<br>cette première version met juste en place ta connexion.</div>
+      <button class="btn-ghost" id="logout">Se déconnecter</button>
+    </div>
+  `;
+  document.getElementById('logout').onclick = async ()=>{ await sb.auth.signOut(); boot(); };
+}
+
+// ====== DÉMARRAGE ======
+async function boot(){
+  if(!sb) return;
+  const { data:{ session } } = await sb.auth.getSession();
+  if(session){ renderHome(session); }
+  else { renderAuth(); }
+}
+boot();
+</script>
+</body>
+</html>
