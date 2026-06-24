@@ -143,6 +143,59 @@ h1{
   text-transform:uppercase;letter-spacing:.05em}
 .tag-open{color:var(--cyan);font-size:11px;font-family:'Barlow Condensed',sans-serif;
   text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+
+/* sous-navigation pronos */
+.subnav{display:flex;gap:6px;margin-bottom:16px}
+.sub-btn{flex:1;padding:9px;border:1px solid var(--line2);background:var(--night);cursor:pointer;
+  border-radius:10px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;
+  text-transform:uppercase;letter-spacing:.06em;color:var(--bone-dim)}
+.sub-btn.active{background:var(--night2);border-color:var(--cyan);color:var(--cyan)}
+
+/* liste des manches */
+.grp-title{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.1em;
+  font-size:12px;color:var(--cyan);font-weight:700;margin:6px 0 10px}
+.grp-title.muted{color:var(--bone-dim);margin-top:20px}
+.manche-row{display:flex;align-items:center;gap:12px;width:100%;cursor:pointer;text-align:left;
+  background:#13283d;border:1.5px solid var(--line2);border-radius:12px;padding:13px 14px;margin-bottom:9px;
+  transition:border-color .15s,transform .1s}
+.manche-row:hover{border-color:var(--cyan);transform:translateY(-1px)}
+.manche-row.closed{opacity:.6}
+.manche-row.closed:hover{border-color:var(--line2);transform:none}
+.m-ord{font-family:'Archivo Black',sans-serif;font-size:16px;color:var(--steel);min-width:24px}
+.m-info{flex:1;min-width:0}
+.m-nom{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:17px;
+  text-transform:uppercase;color:#fff}
+.m-date{display:block;font-size:12px;color:var(--bone-dim);text-transform:capitalize}
+.m-state{text-align:right;display:flex;flex-direction:column;gap:3px;align-items:flex-end}
+.m-open{color:var(--cyan);font-size:11px;font-weight:700;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.05em}
+.m-closed{color:var(--bone-dim);font-size:11px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase}
+.m-done{color:var(--green);font-size:11px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.04em}
+.m-partial{color:#e0a52e;font-size:11px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase}
+
+/* écran prono : podium */
+.back{background:none;border:none;color:var(--cyan);cursor:pointer;font-size:13px;
+  font-family:'Barlow',sans-serif;margin-bottom:12px;padding:0}
+.back:hover{text-decoration:underline}
+.podium{background:var(--night);border:1px solid var(--line2);border-radius:13px;padding:16px;margin-bottom:14px}
+.podium-head{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.cat-tag{font-family:'Archivo Black',sans-serif;font-size:13px;padding:2px 9px;border-radius:6px;color:#fff}
+.cat-450{background:var(--red)}
+.cat-250{background:var(--cyan-deep)}
+.lock{margin-left:auto;font-size:12px;color:var(--bone-dim);font-weight:400;letter-spacing:0}
+.pod-row{display:flex;align-items:center;gap:12px;margin-bottom:9px}
+.pod-row label{font-family:'Archivo Black',sans-serif;font-size:14px;color:var(--bone-dim);min-width:30px}
+.pod-row select{flex:1;padding:11px 12px;border-radius:10px;background:var(--night2);
+  border:1.5px solid var(--line2);color:var(--bone);font-family:'Barlow',sans-serif;font-size:14px}
+.pod-row select:focus{outline:none;border-color:var(--cyan)}
+.pod-row select:disabled{opacity:.6}
+.pod-bonus{margin-top:8px;padding-top:10px;border-top:1px dashed var(--line2)}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--bone-dim);cursor:pointer;margin-bottom:8px}
+.chk input{width:16px;height:16px;accent-color:var(--red)}
+.bonus5.hidden{display:none}
+.voted-note2{margin-top:8px;padding:12px;border-radius:10px;text-align:center;
+  background:rgba(47,168,79,.12);border:1px solid rgba(47,168,79,.35);color:#7ee29a;
+  font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.05em;font-weight:600;font-size:13px}
 </style>
 </head>
 <body>
@@ -352,9 +405,256 @@ function switchView(view){
     v.innerHTML = `<div class="card"><div class="placeholder">Le classement arrivera une fois les premiers pronostics et résultats enregistrés.</div></div>`;
     return;
   }
-  // pronos (à construire à l'étape suivante)
-  v.innerHTML = `<div class="card"><div class="placeholder">Les écrans de pronostics arrivent à la prochaine étape !<br>La base est prête : pilotes et calendrier chargés.</div></div>`;
+  return renderPronos(v);
 }
+
+// ====== DONNÉES partagées ======
+let PILOTES = { '250': [], '450': [] };
+
+async function loadPilotes(){
+  if(PILOTES['250'].length) return;
+  const { data } = await sb.from('pilotes').select('*').eq('actif', true).order('numero');
+  (data||[]).forEach(p=>{ if(PILOTES[p.categorie]) PILOTES[p.categorie].push(p); });
+}
+
+function isClosed(manche){
+  if(manche.terminee) return true;
+  if(!manche.closes_at) return false;
+  return Date.now() >= new Date(manche.closes_at).getTime();
+}
+
+// ====== VUE PRONOSTICS ======
+let pronosState = { mancheId:null, tab:'manches' };
+
+async function renderPronos(v){
+  v.innerHTML = `<div class="card"><div class="loading">Chargement…</div></div>`;
+  await loadPilotes();
+  const { data: manches } = await sb.from('manches').select('*').order('ordre');
+
+  // sous-onglets : par manche / championnat
+  v.innerHTML = `
+    <div class="subnav">
+      <button class="sub-btn ${pronosState.tab==='manches'?'active':''}" id="stManches">Par manche</button>
+      <button class="sub-btn ${pronosState.tab==='champ'?'active':''}" id="stChamp">Championnat</button>
+    </div>
+    <div id="pronoBody"></div>
+  `;
+  document.getElementById('stManches').onclick = ()=>{ pronosState.tab='manches'; renderPronos(v); };
+  document.getElementById('stChamp').onclick = ()=>{ pronosState.tab='champ'; renderPronos(v); };
+
+  if(pronosState.tab==='champ'){ return renderChampPronos(document.getElementById('pronoBody')); }
+
+  // liste des manches : ouvertes en premier
+  const body = document.getElementById('pronoBody');
+  const open = (manches||[]).filter(m=>!isClosed(m));
+  const closed = (manches||[]).filter(m=>isClosed(m));
+
+  // charger mes pronos existants pour afficher l'état
+  const { data: mesPronos } = await sb.from('pronos').select('manche_id,categorie')
+    .eq('user_id', currentSession.user.id);
+  const pronoSet = new Set((mesPronos||[]).map(p=>p.manche_id+'-'+p.categorie));
+
+  const card = (m, closedFlag)=>{
+    const has250 = pronoSet.has(m.id+'-250');
+    const has450 = pronoSet.has(m.id+'-450');
+    const etat = closedFlag
+      ? '<span class="m-closed">Fermée</span>'
+      : `<span class="m-open">Ouverte</span>`;
+    const done = (has250&&has450) ? '<span class="m-done">✓ pronostiqué</span>'
+               : (has250||has450) ? '<span class="m-partial">à compléter</span>' : '';
+    return `<button class="manche-row ${closedFlag?'closed':''}" data-manche="${m.id}">
+      <span class="m-ord">${m.ordre}</span>
+      <span class="m-info"><span class="m-nom">${m.nom}</span><span class="m-date">${frDate(m.date_course)}</span></span>
+      <span class="m-state">${etat}${done}</span>
+    </button>`;
+  };
+
+  body.innerHTML = `
+    ${open.length ? `<div class="grp-title">À pronostiquer</div>` + open.map(m=>card(m,false)).join('') : '<div class="placeholder">Aucune manche ouverte au pronostic pour le moment.</div>'}
+    ${closed.length ? `<div class="grp-title muted">Manches fermées</div>` + closed.map(m=>card(m,true)).join('') : ''}
+  `;
+  body.querySelectorAll('.manche-row').forEach(b=>{
+    b.onclick = ()=> openMancheProno(+b.dataset.manche, manches.find(m=>m.id==b.dataset.manche));
+  });
+}
+
+function frDate(d){
+  if(!d) return '';
+  const dt = new Date(d+'T12:00:00');
+  return dt.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'short'});
+}
+
+// ----- écran de prono d'une manche (250 + 450) -----
+async function openMancheProno(mancheId, manche){
+  const v = document.getElementById('view');
+  const closed = isClosed(manche);
+  v.innerHTML = `<div class="card"><div class="loading">Chargement…</div></div>`;
+
+  // charger mes pronos existants pour cette manche
+  const { data: existing } = await sb.from('pronos').select('*')
+    .eq('user_id', currentSession.user.id).eq('manche_id', mancheId);
+  const byCat = {};
+  (existing||[]).forEach(p=> byCat[p.categorie]=p);
+
+  v.innerHTML = `
+    <div class="card">
+      <button class="back" id="back">← Retour aux manches</button>
+      <div class="sec-title">${manche.nom}</div>
+      <p class="sec-sub">${frDate(manche.date_course)} ·
+        ${closed ? 'Pronostics fermés' : 'Choisis ton podium pour chaque catégorie'}</p>
+      ${podiumBlock('450', byCat['450'], closed)}
+      ${podiumBlock('250', byCat['250'], closed)}
+      <div class="msg" id="pmsg"></div>
+      ${closed ? '' : `<button class="btn" id="savePronos">Enregistrer mes pronostics</button>`}
+    </div>
+  `;
+  document.getElementById('back').onclick = ()=>{ switchView('pronos'); };
+  if(!closed){
+    setupPodium('450'); setupPodium('250');
+    document.getElementById('savePronos').onclick = ()=>saveMancheProno(mancheId, manche);
+  }
+}
+
+function podiumBlock(cat, existing, closed){
+  const pilotes = PILOTES[cat]||[];
+  const opt = (selId)=> '<option value="">—</option>' + pilotes.map(p=>
+    `<option value="${p.id}" ${selId==p.id?'selected':''}>#${p.numero||'?'} ${p.nom}</option>`).join('');
+  const dis = closed ? 'disabled' : '';
+  const e = existing||{};
+  return `
+    <div class="podium" data-cat="${cat}">
+      <div class="podium-head"><span class="cat-tag cat-${cat}">${cat}</span> Podium</div>
+      <div class="pod-row"><label>1<sup>er</sup></label><select ${dis} data-pos="p1">${opt(e.p1_pilote_id)}</select></div>
+      <div class="pod-row"><label>2<sup>e</sup></label><select ${dis} data-pos="p2">${opt(e.p2_pilote_id)}</select></div>
+      <div class="pod-row"><label>3<sup>e</sup></label><select ${dis} data-pos="p3">${opt(e.p3_pilote_id)}</select></div>
+      <div class="pod-bonus">
+        <label class="chk"><input type="checkbox" ${dis} data-bonus5 ${e.joue_bonus5?'checked':''}> Tenter le bonus 5<sup>e</sup> place</label>
+        <div class="pod-row bonus5 ${e.joue_bonus5?'':'hidden'}"><label>5<sup>e</sup></label><select ${dis} data-pos="p5">${opt(e.p5_pilote_id)}</select></div>
+      </div>
+    </div>
+  `;
+}
+
+function setupPodium(cat){
+  const block = document.querySelector(`.podium[data-cat="${cat}"]`);
+  const selects = [...block.querySelectorAll('select[data-pos]')];
+  // empêcher de choisir 2x le même pilote (sur p1/p2/p3)
+  const refresh = ()=>{
+    const chosen = selects.filter(s=>['p1','p2','p3'].includes(s.dataset.pos)).map(s=>s.value).filter(Boolean);
+    selects.forEach(s=>{
+      if(!['p1','p2','p3'].includes(s.dataset.pos)) return;
+      [...s.options].forEach(o=>{
+        if(!o.value) return;
+        o.disabled = chosen.includes(o.value) && s.value !== o.value;
+      });
+    });
+  };
+  selects.forEach(s=> s.onchange = refresh);
+  refresh();
+  // toggle bonus 5e
+  const chk = block.querySelector('input[data-bonus5]');
+  chk.onchange = ()=>{
+    block.querySelector('.bonus5').classList.toggle('hidden', !chk.checked);
+  };
+}
+
+async function saveMancheProno(mancheId, manche){
+  if(isClosed(manche)){ return showPMsg("Cette manche est fermée.", 'err'); }
+  const rows = [];
+  for(const cat of ['450','250']){
+    const block = document.querySelector(`.podium[data-cat="${cat}"]`);
+    const get = pos => block.querySelector(`select[data-pos="${pos}"]`).value || null;
+    const bonus = block.querySelector('input[data-bonus5]').checked;
+    const p1=get('p1'), p2=get('p2'), p3=get('p3'), p5=bonus?get('p5'):null;
+    // validation : podium complet requis si on enregistre cette catégorie
+    if(p1||p2||p3){
+      if(!(p1&&p2&&p3)) return showPMsg(`Complète tout le podium ${cat} (1er, 2e, 3e).`, 'err');
+      if(bonus && !p5) return showPMsg(`Choisis ton pilote 5e en ${cat} ou décoche le bonus.`, 'err');
+      rows.push({ user_id: currentSession.user.id, manche_id: mancheId, categorie: cat,
+        p1_pilote_id:p1, p2_pilote_id:p2, p3_pilote_id:p3, p5_pilote_id:p5, joue_bonus5:bonus });
+    }
+  }
+  if(!rows.length) return showPMsg("Choisis au moins un podium avant d'enregistrer.", 'err');
+
+  showPMsg("Enregistrement…", 'ok');
+  const { error } = await sb.from('pronos').upsert(rows, { onConflict:'user_id,manche_id,categorie' });
+  if(error) return showPMsg(error.message, 'err');
+  showPMsg("✓ Pronostics enregistrés ! Tu peux les modifier jusqu'à la fermeture.", 'ok');
+}
+
+function showPMsg(t,type){ const m=document.getElementById('pmsg'); if(m){ m.textContent=t; m.className='msg show '+type; } }
+
+// ----- prono championnat -----
+async function renderChampPronos(body){
+  body.innerHTML = `<div class="loading">Chargement…</div>`;
+  const { data: existing } = await sb.from('pronos_championnat').select('*')
+    .eq('user_id', currentSession.user.id);
+  const byCat = {}; (existing||[]).forEach(p=>byCat[p.categorie]=p);
+  const valide450 = byCat['450']?.valide;
+  const valide250 = byCat['250']?.valide;
+
+  body.innerHTML = `
+    <p class="sec-sub">Pronostique le podium FINAL du championnat (1er/2e/3e). Une fois validé, c'est figé !</p>
+    ${champBlock('450', byCat['450'])}
+    ${champBlock('250', byCat['250'])}
+    <div class="msg" id="cmsg"></div>
+    ${(valide450 && valide250) ? '<div class="voted-note2">✓ Tes pronostics championnat sont validés et figés</div>'
+      : `<button class="btn" id="saveChamp">Valider mes pronostics championnat</button>
+         <p class="hint" style="text-align:center">⚠️ La validation est définitive, vérifie bien avant !</p>`}
+  `;
+  if(!(valide450 && valide250)){
+    setupChampPodium('450'); setupChampPodium('250');
+    document.getElementById('saveChamp').onclick = saveChampProno;
+  }
+}
+
+function champBlock(cat, existing){
+  const pilotes = PILOTES[cat]||[];
+  const e = existing||{};
+  const closed = e.valide;
+  const opt = (selId)=> '<option value="">—</option>' + pilotes.map(p=>
+    `<option value="${p.id}" ${selId==p.id?'selected':''}>#${p.numero||'?'} ${p.nom}</option>`).join('');
+  const dis = closed ? 'disabled' : '';
+  return `
+    <div class="podium champ" data-cat="${cat}">
+      <div class="podium-head"><span class="cat-tag cat-${cat}">${cat}</span> Podium championnat ${closed?'<span class="lock">🔒 figé</span>':''}</div>
+      <div class="pod-row"><label>1<sup>er</sup></label><select ${dis} data-pos="p1">${opt(e.p1_pilote_id)}</select></div>
+      <div class="pod-row"><label>2<sup>e</sup></label><select ${dis} data-pos="p2">${opt(e.p2_pilote_id)}</select></div>
+      <div class="pod-row"><label>3<sup>e</sup></label><select ${dis} data-pos="p3">${opt(e.p3_pilote_id)}</select></div>
+      <div class="pod-bonus">
+        <label class="chk"><input type="checkbox" ${dis} data-bonus5 ${e.joue_bonus5?'checked':''}> Tenter le bonus 5<sup>e</sup> place finale</label>
+        <div class="pod-row bonus5 ${e.joue_bonus5?'':'hidden'}"><label>5<sup>e</sup></label><select ${dis} data-pos="p5">${opt(e.p5_pilote_id)}</select></div>
+      </div>
+    </div>
+  `;
+}
+
+function setupChampPodium(cat){ setupPodium(cat); } // même logique anti-doublon
+
+async function saveChampProno(){
+  const rows = [];
+  for(const cat of ['450','250']){
+    const block = document.querySelector(`.podium.champ[data-cat="${cat}"]`);
+    if(!block) continue;
+    const get = pos => block.querySelector(`select[data-pos="${pos}"]`).value || null;
+    const bonus = block.querySelector('input[data-bonus5]').checked;
+    const p1=get('p1'), p2=get('p2'), p3=get('p3'), p5=bonus?get('p5'):null;
+    if(!(p1&&p2&&p3)) return showCMsg(`Complète tout le podium championnat ${cat}.`, 'err');
+    if(bonus && !p5) return showCMsg(`Choisis ton 5e en ${cat} ou décoche le bonus.`, 'err');
+    rows.push({ user_id: currentSession.user.id, categorie: cat,
+      p1_pilote_id:p1, p2_pilote_id:p2, p3_pilote_id:p3, p5_pilote_id:p5, joue_bonus5:bonus, valide:true });
+  }
+  if(rows.length<2) return showCMsg("Remplis les deux podiums (250 et 450).", 'err');
+
+  if(!confirm("Valider définitivement tes pronostics championnat ? Tu ne pourras plus les modifier.")) return;
+  showCMsg("Validation…", 'ok');
+  const { error } = await sb.from('pronos_championnat').upsert(rows, { onConflict:'user_id,categorie' });
+  if(error) return showCMsg(error.message, 'err');
+  showCMsg("✓ Pronostics championnat validés et figés !", 'ok');
+  setTimeout(()=>renderChampPronos(document.getElementById('pronoBody')), 1500);
+}
+
+function showCMsg(t,type){ const m=document.getElementById('cmsg'); if(m){ m.textContent=t; m.className='msg show '+type; } }
 
 // ====== ADMIN : gestion du calendrier ======
 async function renderAdmin(v){
