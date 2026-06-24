@@ -176,6 +176,10 @@ h1{
 .back{background:none;border:none;color:var(--cyan);cursor:pointer;font-size:13px;
   font-family:'Barlow',sans-serif;margin-bottom:12px;padding:0}
 .back:hover{text-decoration:underline}
+.countdown-banner{background:rgba(30,167,225,.1);border:1px solid rgba(30,167,225,.35);
+  color:var(--cyan);text-align:center;padding:10px;border-radius:10px;margin-bottom:16px;
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;
+  letter-spacing:.06em;font-size:14px;font-variant-numeric:tabular-nums}
 .podium{background:var(--night);border:1px solid var(--line2);border-radius:13px;padding:16px;margin-bottom:14px}
 .podium-head{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;
   text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;display:flex;align-items:center;gap:8px}
@@ -459,7 +463,7 @@ async function renderPronos(v){
     const has450 = pronoSet.has(m.id+'-450');
     const etat = closedFlag
       ? '<span class="m-closed">Fermée</span>'
-      : `<span class="m-open">Ouverte</span>`;
+      : `<span class="m-open" data-countdown="${m.closes_at||''}">${countdownText(m.closes_at)}</span>`;
     const done = (has250&&has450) ? '<span class="m-done">✓ pronostiqué</span>'
                : (has250||has450) ? '<span class="m-partial">à compléter</span>' : '';
     return `<button class="manche-row ${closedFlag?'closed':''}" data-manche="${m.id}">
@@ -476,6 +480,36 @@ async function renderPronos(v){
   body.querySelectorAll('.manche-row').forEach(b=>{
     b.onclick = ()=> openMancheProno(+b.dataset.manche, manches.find(m=>m.id==b.dataset.manche));
   });
+  startCountdowns();
+}
+
+// ----- compte à rebours -----
+function countdownText(closesAt){
+  if(!closesAt) return 'Ouverte';
+  const left = new Date(closesAt).getTime() - Date.now();
+  if(left <= 0) return 'Fermée';
+  const d = Math.floor(left/86400000);
+  const h = Math.floor(left%86400000/3600000);
+  const m = Math.floor(left%3600000/60000);
+  if(d > 0) return `Ferme dans ${d}j ${h}h`;
+  if(h > 0) return `Ferme dans ${h}h ${String(m).padStart(2,'0')}min`;
+  const s = Math.floor(left%60000/1000);
+  return `Ferme dans ${m}min ${String(s).padStart(2,'0')}s`;
+}
+let countdownTimer = null;
+function startCountdowns(){
+  if(countdownTimer) clearInterval(countdownTimer);
+  const tick = ()=>{
+    document.querySelectorAll('[data-countdown]').forEach(el=>{
+      const ca = el.dataset.countdown;
+      el.textContent = countdownText(ca);
+      if(ca && new Date(ca).getTime() - Date.now() <= 0){
+        el.classList.remove('m-open'); el.classList.add('m-closed');
+      }
+    });
+  };
+  tick();
+  countdownTimer = setInterval(tick, 1000);
 }
 
 function frDate(d){
@@ -502,6 +536,7 @@ async function openMancheProno(mancheId, manche){
       <div class="sec-title">${manche.nom}</div>
       <p class="sec-sub">${frDate(manche.date_course)} ·
         ${closed ? 'Pronostics fermés' : 'Choisis ton podium pour chaque catégorie'}</p>
+      ${closed ? '' : `<div class="countdown-banner" data-countdown="${manche.closes_at||''}">${countdownText(manche.closes_at)}</div>`}
       ${podiumBlock('450', byCat['450'], closed)}
       ${podiumBlock('250', byCat['250'], closed)}
       <div class="msg" id="pmsg"></div>
@@ -512,6 +547,7 @@ async function openMancheProno(mancheId, manche){
   if(!closed){
     setupPodium('450'); setupPodium('250');
     document.getElementById('savePronos').onclick = ()=>saveMancheProno(mancheId, manche);
+    startCountdowns();
   }
 }
 
