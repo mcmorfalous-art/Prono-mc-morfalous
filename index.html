@@ -128,6 +128,15 @@ header::after{
 .loading{text-align:center;color:var(--bone-dim);padding:40px 0;font-size:15px}
 .placeholder{text-align:center;color:var(--bone-dim);padding:30px 10px;font-size:15px;line-height:1.5}
 
+/* sélecteur de championnat */
+.champ-selector{display:flex;gap:6px;margin-bottom:14px;justify-content:center}
+.champ-btn{flex:1;max-width:130px;padding:9px 6px;border:1.5px solid var(--line2);
+  background:var(--night);cursor:pointer;border-radius:10px;
+  font-family:'Archivo Black',sans-serif;font-size:13px;text-transform:uppercase;
+  letter-spacing:.02em;color:var(--bone-dim)}
+.champ-btn.active{background:linear-gradient(180deg,var(--red),#b32a20);color:#fff;border-color:var(--red)}
+.champ-btn:hover:not(.active){border-color:var(--cyan);color:var(--cyan)}
+
 /* topbar */
 .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
 .topbar-user{display:flex;align-items:center;gap:10px}
@@ -575,6 +584,8 @@ const val = id => (document.getElementById(id)?.value || '').trim();
 // ====== ÉCRAN CONNECTÉ ======
 let currentProfil = null;
 let currentSession = null;
+let currentChamp = 'AMA'; // championnat sélectionné (AMA / MXGP / Vendée)
+const CHAMPS = ['AMA','MXGP','Vendée'];
 
 async function renderHome(session){
   currentSession = session;
@@ -592,6 +603,9 @@ async function renderHome(session){
       </div>
       <button class="btn-ghost sm" id="logout">Déconnexion</button>
     </div>
+    <div class="champ-selector" id="champSelector">
+      ${CHAMPS.map(c=>`<button class="champ-btn ${c===currentChamp?'active':''}" data-champ="${c}">${c}</button>`).join('')}
+    </div>
     <nav class="nav" id="nav">
       <button class="nav-btn active" data-view="pronos">Pronos</button>
       <button class="nav-btn" data-view="mespronos">Mes pronos</button>
@@ -603,6 +617,17 @@ async function renderHome(session){
   `;
   document.getElementById('logout').onclick = async ()=>{ await sb.auth.signOut(); boot(); };
   document.getElementById('openProfil').onclick = ()=> openProfil(profil);
+  document.querySelectorAll('.champ-btn').forEach(b=>{
+    b.onclick = ()=>{
+      currentChamp = b.dataset.champ;
+      document.querySelectorAll('.champ-btn').forEach(x=>x.classList.toggle('active', x.dataset.champ===currentChamp));
+      // vider le cache pilotes (ils dépendent du championnat)
+      PILOTES = { '250':[], '450':[] };
+      // recharger la vue active
+      const active = document.querySelector('.nav-btn.active');
+      switchView(active ? active.dataset.view : 'pronos');
+    };
+  });
   document.querySelectorAll('.nav-btn').forEach(b=>{
     b.onclick = ()=>{
       document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));
@@ -671,25 +696,28 @@ async function renderMesPronos(v){
 
   const [pronosR, manchesR, pchampR, resultatsR, allPronosR, allProfilsR, allPchampR, rchampR] = await Promise.all([
     sb.from('pronos').select('*').eq('user_id', uid),
-    sb.from('manches').select('*').order('ordre'),
-    sb.from('pronos_championnat').select('*').eq('user_id', uid),
+    sb.from('manches').select('*').eq('championnat', currentChamp).order('ordre'),
+    sb.from('pronos_championnat').select('*').eq('user_id', uid).eq('championnat', currentChamp),
     sb.from('resultats').select('*'),
     sb.from('pronos').select('*'),
     sb.from('profils').select('id,pseudo'),
     sb.from('pronos_championnat').select('*'),
     sb.from('resultat_championnat').select('*'),
   ]);
-  const pronos = pronosR.data||[];
   const manches = manchesR.data||[];
   const pchamp = pchampR.data||[];
-  const resultats = resultatsR.data||[];
+  const resultats = (resultatsR.data||[]);
+
+  // ids des manches du championnat courant (pour filtrer pronos/résultats)
+  const mancheIds = new Set(manches.map(m=>m.id));
+  const pronos = (pronosR.data||[]).filter(pr=> mancheIds.has(pr.manche_id));
 
   // index pilote id -> "nom (#num)"
   const pidName = {};
   [...PILOTES['450'], ...PILOTES['250']].forEach(p=> pidName[p.id] = `${p.nom}${p.numero?` #${p.numero}`:''}`);
 
   // ===== STATS PERSO =====
-  const resByKey={}; resultats.forEach(r=> resByKey[r.manche_id+'-'+r.categorie]=r);
+  const resByKey={}; resultats.filter(r=>mancheIds.has(r.manche_id)).forEach(r=> resByKey[r.manche_id+'-'+r.categorie]=r);
 
   // 1) moyenne de points par manche (sur mes pronos qui ont un résultat)
   let totalPts=0, nbScored=0;
@@ -714,9 +742,11 @@ async function renderMesPronos(v){
   const pbEntries=Object.entries(ptsByPilote).sort((a,b)=>b[1]-a[1]);
   if(pbEntries.length) porteBonheur = pidName[pbEntries[0][0]]||'—';
 
-  // 3) ma place au classement général (recalcul global)
-  const allPronos=allPronosR.data||[], allProfils=allProfilsR.data||[];
-  const allPchamp=allPchampR.data||[], rchamp=rchampR.data||[];
+  // 3) ma place au classement général (du championnat courant)
+  const allPronos=(allPronosR.data||[]).filter(pr=> mancheIds.has(pr.manche_id));
+  const allProfils=allProfilsR.data||[];
+  const allPchamp=(allPchampR.data||[]).filter(pc=> pc.championnat===currentChamp);
+  const rchamp=(rchampR.data||[]).filter(r=> r.championnat===currentChamp);
   const rchampByCat={}; rchamp.forEach(r=>rchampByCat[r.categorie]=r);
   const totals={}; allProfils.forEach(p=>totals[p.id]=0);
   allPronos.forEach(pr=>{ const res=resByKey[pr.manche_id+'-'+pr.categorie]; if(res&&totals[pr.user_id]!==undefined) totals[pr.user_id]+=scoreManche(pr,res); });
@@ -946,16 +976,17 @@ async function renderClassement(v){
     sb.from('profils').select('id,pseudo'),
     sb.from('pronos').select('*'),
     sb.from('resultats').select('*'),
-    sb.from('pronos_championnat').select('*'),
-    sb.from('resultat_championnat').select('*'),
-    sb.from('manches').select('*').order('ordre'),
+    sb.from('pronos_championnat').select('*').eq('championnat', currentChamp),
+    sb.from('resultat_championnat').select('*').eq('championnat', currentChamp),
+    sb.from('manches').select('*').eq('championnat', currentChamp).order('ordre'),
   ]);
   const profils = profilsR.data||[];
-  const pronos = pronosR.data||[];
-  const resultats = resultatsR.data||[];
+  const manches = manchesR.data||[];
+  const mancheIds = new Set(manches.map(m=>m.id));
+  const pronos = (pronosR.data||[]).filter(pr=> mancheIds.has(pr.manche_id));
+  const resultats = (resultatsR.data||[]).filter(r=> mancheIds.has(r.manche_id));
   const pchamp = pchampR.data||[];
   const rchamp = rchampR.data||[];
-  const manches = manchesR.data||[];
 
   // index résultats par manche+cat
   const resByKey = {};
@@ -1062,13 +1093,15 @@ async function renderStats(v){
   v.innerHTML = `<div class="card"><div class="loading">Calcul des stats…</div></div>`;
   await loadPilotes();
 
-  const [pronosR, resultatsR, pchampR] = await Promise.all([
+  const [pronosR, resultatsR, pchampR, manchesR] = await Promise.all([
     sb.from('pronos').select('*'),
     sb.from('resultats').select('*'),
-    sb.from('pronos_championnat').select('*'),
+    sb.from('pronos_championnat').select('*').eq('championnat', currentChamp),
+    sb.from('manches').select('id').eq('championnat', currentChamp),
   ]);
-  const pronos = pronosR.data||[];
-  const resultats = resultatsR.data||[];
+  const mancheIds = new Set((manchesR.data||[]).map(m=>m.id));
+  const pronos = (pronosR.data||[]).filter(pr=> mancheIds.has(pr.manche_id));
+  const resultats = (resultatsR.data||[]).filter(r=> mancheIds.has(r.manche_id));
   const pchamp = pchampR.data||[];
 
   const pidInfo = {};
@@ -1160,7 +1193,8 @@ let PILOTES = { '250': [], '450': [] };
 
 async function loadPilotes(){
   if(PILOTES['250'].length) return;
-  const { data } = await sb.from('pilotes').select('*').eq('actif', true).eq('valide', true).order('numero');
+  const { data } = await sb.from('pilotes').select('*').eq('actif', true).eq('valide', true)
+    .eq('championnat', currentChamp).order('numero');
   (data||[]).forEach(p=>{ if(PILOTES[p.categorie]) PILOTES[p.categorie].push(p); });
 }
 
@@ -1176,7 +1210,7 @@ let pronosState = { mancheId:null, tab:'manches' };
 async function renderPronos(v){
   v.innerHTML = `<div class="card"><div class="loading">Chargement…</div></div>`;
   await loadPilotes();
-  const { data: manches } = await sb.from('manches').select('*').order('ordre');
+  const { data: manches } = await sb.from('manches').select('*').eq('championnat', currentChamp).order('ordre');
 
   // sous-onglets : par manche / championnat
   v.innerHTML = `
@@ -1430,10 +1464,10 @@ function openProposeForm(){
     const m = document.getElementById('prmsg');
     if(!nom){ m.className='msg show err'; m.textContent="Entre le nom du pilote."; return; }
     // anti-doublon basique : vérifie si un nom proche existe déjà (validé ou non)
-    const { data: existing } = await sb.from('pilotes').select('nom').ilike('nom', nom);
+    const { data: existing } = await sb.from('pilotes').select('nom').eq('championnat', currentChamp).ilike('nom', nom);
     if(existing && existing.length){ m.className='msg show err'; m.textContent="Ce pilote semble déjà exister."; return; }
     const { error } = await sb.from('pilotes').insert({
-      numero, nom, categorie, valide:false, propose_par: currentSession.user.id
+      numero, nom, categorie, valide:false, propose_par: currentSession.user.id, championnat: currentChamp
     });
     if(error){ m.className='msg show err'; m.textContent=error.message; return; }
     m.className='msg show ok'; m.textContent="✓ Proposition envoyée ! L'admin la validera bientôt.";
@@ -1459,7 +1493,7 @@ async function renderChampPronos(body){
   body.innerHTML = `<div class="loading">Chargement…</div>`;
   await loadConfig();
   const { data: existing } = await sb.from('pronos_championnat').select('*')
-    .eq('user_id', currentSession.user.id);
+    .eq('user_id', currentSession.user.id).eq('championnat', currentChamp);
   const byCat = {}; (existing||[]).forEach(p=>byCat[p.categorie]=p);
   const valide450 = byCat['450']?.valide;
   const valide250 = byCat['250']?.valide;
@@ -1533,14 +1567,14 @@ async function saveChampProno(){
     const p1=get('p1'), p2=get('p2'), p3=get('p3'), p5=bonus?get('p5'):null;
     if(!(p1&&p2&&p3)) return showCMsg(`Complète tout le podium championnat ${cat}.`, 'err');
     if(bonus && !p5) return showCMsg(`Choisis ton 5e en ${cat} ou décoche le bonus.`, 'err');
-    rows.push({ user_id: currentSession.user.id, categorie: cat,
+    rows.push({ user_id: currentSession.user.id, categorie: cat, championnat: currentChamp,
       p1_pilote_id:p1, p2_pilote_id:p2, p3_pilote_id:p3, p5_pilote_id:p5, joue_bonus5:bonus, valide:true });
   }
   if(rows.length<2) return showCMsg("Remplis les deux podiums (250 et 450).", 'err');
 
   if(!confirm("Valider définitivement tes pronostics championnat ? Tu ne pourras plus les modifier.")) return;
   showCMsg("Validation…", 'ok');
-  const { error } = await sb.from('pronos_championnat').upsert(rows, { onConflict:'user_id,categorie' });
+  const { error } = await sb.from('pronos_championnat').upsert(rows, { onConflict:'user_id,categorie,championnat' });
   if(error) return showCMsg(error.message, 'err');
   showCMsg("✓ Pronostics championnat validés et figés !", 'ok');
   setTimeout(()=>renderChampPronos(document.getElementById('pronoBody')), 1500);
@@ -1571,7 +1605,7 @@ async function renderAdmin(v){
 async function renderAdminResultats(body){
   body.innerHTML = `<div class="loading">Chargement…</div>`;
   await loadPilotes();
-  const { data: manches, error } = await sb.from('manches').select('*').order('ordre');
+  const { data: manches, error } = await sb.from('manches').select('*').eq('championnat', currentChamp).order('ordre');
   if(error){ body.innerHTML = `<div class="msg err show">${error.message}</div>`; return; }
   const { data: resultats } = await sb.from('resultats').select('manche_id,categorie');
   const resSet = new Set((resultats||[]).map(r=>r.manche_id+'-'+r.categorie));
@@ -1601,7 +1635,7 @@ async function renderAdminResultats(body){
 // ====== ADMIN · PILOTES (ajouter / modifier) ======
 async function renderAdminPilotes(body){
   body.innerHTML = `<div class="loading">Chargement…</div>`;
-  const { data: pilotes } = await sb.from('pilotes').select('*').order('categorie').order('numero');
+  const { data: pilotes } = await sb.from('pilotes').select('*').eq('championnat', currentChamp).order('categorie').order('numero');
   const valides = (pilotes||[]).filter(p=>p.valide);
   const proposes = (pilotes||[]).filter(p=>!p.valide);
 
@@ -1680,7 +1714,7 @@ async function renderAdminPilotes(body){
     const nom = document.getElementById('newNom').value.trim();
     const categorie = document.getElementById('newCat').value;
     if(!nom) return showPilMsg("Entre le nom du pilote.", 'err');
-    const { error } = await sb.from('pilotes').insert({ numero, nom, categorie, valide:true });
+    const { error } = await sb.from('pilotes').insert({ numero, nom, categorie, valide:true, championnat: currentChamp });
     if(error){
       if(error.message.includes('duplicate')||error.message.includes('unique'))
         return showPilMsg("Ce pilote existe déjà dans cette catégorie.", 'err');
