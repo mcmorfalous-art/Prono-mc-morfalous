@@ -584,8 +584,9 @@ const val = id => (document.getElementById(id)?.value || '').trim();
 // ====== ÉCRAN CONNECTÉ ======
 let currentProfil = null;
 let currentSession = null;
-let currentChamp = 'AMA'; // championnat sélectionné (AMA / MXGP / Vendée)
+let currentChamp = 'AMA'; // championnat sélectionné (valeur interne)
 const CHAMPS = ['AMA','MXGP','Vendée'];
+const CHAMP_LABELS = { 'AMA':'MX US', 'MXGP':'MXGP', 'Vendée':'Vendée' };
 
 async function renderHome(session){
   currentSession = session;
@@ -604,7 +605,7 @@ async function renderHome(session){
       <button class="btn-ghost sm" id="logout">Déconnexion</button>
     </div>
     <div class="champ-selector" id="champSelector">
-      ${CHAMPS.map(c=>`<button class="champ-btn ${c===currentChamp?'active':''}" data-champ="${c}">${c}</button>`).join('')}
+      ${CHAMPS.map(c=>`<button class="champ-btn ${c===currentChamp?'active':''}" data-champ="${c}">${CHAMP_LABELS[c]||c}</button>`).join('')}
     </div>
     <nav class="nav" id="nav">
       <button class="nav-btn active" data-view="pronos">Pronos</button>
