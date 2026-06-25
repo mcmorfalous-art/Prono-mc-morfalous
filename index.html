@@ -136,11 +136,11 @@ header::after{
 .btn-ghost.sm{margin-top:0;padding:7px 12px;font-size:11px}
 
 /* navigation */
-.nav{display:flex;gap:6px;margin-bottom:18px;background:var(--night2);
-  border:1px solid var(--line);border-radius:12px;padding:4px}
-.nav-btn{flex:1;padding:10px 5px;border:none;background:none;cursor:pointer;border-radius:9px;
-  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;
-  text-transform:uppercase;letter-spacing:.03em;color:var(--bone-dim);white-space:nowrap}
+.nav{display:flex;gap:4px;margin-bottom:18px;background:var(--night2);
+  border:1px solid var(--line);border-radius:12px;padding:4px;flex-wrap:wrap}
+.nav-btn{flex:1 1 auto;padding:9px 6px;border:none;background:none;cursor:pointer;border-radius:9px;
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12.5px;
+  text-transform:uppercase;letter-spacing:.02em;color:var(--bone-dim);white-space:nowrap}
 .nav-btn.active{background:linear-gradient(180deg,var(--cyan),var(--cyan-deep));color:#fff}
 
 /* sections */
@@ -224,6 +224,35 @@ header::after{
   margin-bottom:10px;color:#fff}
 .confirm-text{color:var(--bone-dim);font-size:14px;line-height:1.5;margin-bottom:18px}
 .confirm-text b{color:var(--bone)}
+
+/* bouton supprimer */
+.btn-del{width:100%;padding:11px;margin-top:10px;border:1px solid rgba(226,59,46,.4);
+  background:rgba(226,59,46,.08);color:#ff8a80;border-radius:11px;cursor:pointer;
+  font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.06em;
+  font-weight:700;font-size:13px}
+.btn-del:hover{background:rgba(226,59,46,.15)}
+
+/* vue mes pronos */
+.mp-manche{background:var(--night);border:1px solid var(--line2);border-radius:12px;
+  padding:14px;margin-bottom:12px}
+.mp-manche.champ{border-color:rgba(255,217,84,.3);background:rgba(255,217,84,.04)}
+.mp-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.mp-nom{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:17px;
+  text-transform:uppercase;color:#fff}
+.mp-status{font-size:11px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;
+  letter-spacing:.05em;font-weight:600}
+.mp-status.open{color:var(--cyan)}
+.mp-status.closed{color:var(--bone-dim)}
+.mp-cat{display:flex;align-items:flex-start;gap:8px;margin-bottom:7px;font-size:13px}
+.mp-podium{color:var(--bone);line-height:1.5;flex:1}
+.mp-actions{display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.mp-edit,.mp-del{flex:1;padding:8px;border-radius:8px;cursor:pointer;
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;
+  text-transform:uppercase;letter-spacing:.05em}
+.mp-edit{background:var(--steel);color:#fff;border:none}
+.mp-edit:hover{background:var(--cyan-deep)}
+.mp-del{background:none;color:#ff8a80;border:1px solid rgba(226,59,46,.4)}
+.mp-del:hover{background:rgba(226,59,46,.12)}
 .podium{background:var(--night);border:1px solid var(--line2);border-radius:13px;padding:16px;margin-bottom:14px}
 .podium-head{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;
   text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;display:flex;align-items:center;gap:8px}
@@ -535,6 +564,7 @@ async function renderHome(session){
     </div>
     <nav class="nav" id="nav">
       <button class="nav-btn active" data-view="pronos">Pronos</button>
+      <button class="nav-btn" data-view="mespronos">Mes pronos</button>
       <button class="nav-btn" data-view="classement">Classement</button>
       <button class="nav-btn" data-view="regles">Règles</button>
       ${isAdmin ? '<button class="nav-btn" data-view="admin">Admin</button>' : ''}
@@ -557,7 +587,103 @@ function switchView(view){
   if(view === 'admin'){ return renderAdmin(v); }
   if(view === 'classement'){ return renderClassement(v); }
   if(view === 'regles'){ return renderRegles(v); }
+  if(view === 'mespronos'){ return renderMesPronos(v); }
   return renderPronos(v);
+}
+
+// ====== VUE MES PRONOS ======
+async function renderMesPronos(v){
+  v.innerHTML = `<div class="card"><div class="loading">Chargement de tes pronostics…</div></div>`;
+  await loadPilotes();
+  const uid = currentSession.user.id;
+
+  const [pronosR, manchesR, pchampR] = await Promise.all([
+    sb.from('pronos').select('*').eq('user_id', uid),
+    sb.from('manches').select('*').order('ordre'),
+    sb.from('pronos_championnat').select('*').eq('user_id', uid),
+  ]);
+  const pronos = pronosR.data||[];
+  const manches = manchesR.data||[];
+  const pchamp = pchampR.data||[];
+
+  // index pilote id -> "nom (#num)"
+  const pidName = {};
+  [...PILOTES['450'], ...PILOTES['250']].forEach(p=> pidName[p.id] = `${p.nom}${p.numero?` #${p.numero}`:''}`);
+
+  // regrouper pronos par manche
+  const byManche = {};
+  pronos.forEach(pr=>{ (byManche[pr.manche_id]=byManche[pr.manche_id]||[]).push(pr); });
+
+  const mancheCards = manches
+    .filter(m=> byManche[m.id])
+    .map(m=>{
+      const closed = isClosed(m);
+      const cats = byManche[m.id].sort((a,b)=> b.categorie.localeCompare(a.categorie));
+      const podiums = cats.map(pr=>{
+        const l1 = pidName[pr.p1_pilote_id]||'?';
+        const l2 = pidName[pr.p2_pilote_id]||'?';
+        const l3 = pidName[pr.p3_pilote_id]||'?';
+        const l5 = pr.joue_bonus5 ? (pidName[pr.p5_pilote_id]||'?') : null;
+        return `<div class="mp-cat">
+          <span class="cat-tag cat-${pr.categorie}">${pr.categorie}</span>
+          <span class="mp-podium">🥇 ${l1} · 🥈 ${l2} · 🥉 ${l3}${l5?` · 5e ${l5}`:''}</span>
+        </div>`;
+      }).join('');
+      return `<div class="mp-manche">
+        <div class="mp-head">
+          <span class="mp-nom">${m.nom}</span>
+          <span class="mp-status ${closed?'closed':'open'}">${closed?'🔒 fermé':'modifiable'}</span>
+        </div>
+        ${podiums}
+        <div class="mp-actions">
+          <button class="mp-edit" data-manche="${m.id}">${closed?'Voir':'Modifier'}</button>
+          ${closed?'':`<button class="mp-del" data-manche="${m.id}">Supprimer</button>`}
+        </div>
+      </div>`;
+    }).join('');
+
+  // championnat
+  let champCard = '';
+  if(pchamp.length){
+    const cats = pchamp.sort((a,b)=> b.categorie.localeCompare(a.categorie));
+    const blocks = cats.map(pc=>{
+      const l1=pidName[pc.p1_pilote_id]||'?', l2=pidName[pc.p2_pilote_id]||'?', l3=pidName[pc.p3_pilote_id]||'?';
+      const l5= pc.joue_bonus5 ? (pidName[pc.p5_pilote_id]||'?') : null;
+      return `<div class="mp-cat"><span class="cat-tag cat-${pc.categorie}">${pc.categorie}</span>
+        <span class="mp-podium">🥇 ${l1} · 🥈 ${l2} · 🥉 ${l3}${l5?` · 5e ${l5}`:''}</span></div>`;
+    }).join('');
+    champCard = `<div class="mp-manche champ">
+      <div class="mp-head"><span class="mp-nom">🏆 Championnat</span>
+        <span class="mp-status ${pchamp[0].valide?'closed':'open'}">${pchamp[0].valide?'🔒 validé':'brouillon'}</span></div>
+      ${blocks}
+    </div>`;
+  }
+
+  const hasAny = mancheCards || champCard;
+  v.innerHTML = `
+    <div class="card">
+      <div class="sec-title">Mes pronostics</div>
+      <p class="sec-sub">Retrouve tous tes pronos ici. Tu peux les modifier ou les supprimer tant que la manche est ouverte.</p>
+      ${hasAny ? mancheCards + champCard
+        : '<div class="placeholder">Aucun pronostic pour le moment. Rends-toi dans l onglet Pronos pour commencer !</div>'}
+    </div>
+  `;
+  // actions
+  v.querySelectorAll('.mp-edit').forEach(b=>{
+    b.onclick = ()=> openMancheProno(+b.dataset.manche, manches.find(m=>m.id==b.dataset.manche));
+  });
+  v.querySelectorAll('.mp-del').forEach(b=>{
+    b.onclick = ()=> deleteMancheProno(+b.dataset.manche, manches.find(m=>m.id==b.dataset.manche));
+  });
+}
+
+async function deleteMancheProno(mancheId, manche){
+  if(isClosed(manche)){ alert("Cette manche est fermée, le prono ne peut plus être supprimé."); return; }
+  if(!confirm(`Supprimer ton pronostic pour ${manche.nom} ? Cette action est définitive.`)) return;
+  const { error } = await sb.from('pronos').delete()
+    .eq('user_id', currentSession.user.id).eq('manche_id', mancheId);
+  if(error){ alert("Erreur : "+error.message); return; }
+  renderMesPronos(document.getElementById('view'));
 }
 
 // ====== VUE RÈGLES / COMMENT JOUER ======
@@ -936,6 +1062,7 @@ async function openMancheProno(mancheId, manche){
       ${closed ? '' : `<button class="propose-btn" id="proposeBtn">+ Proposer un pilote absent de la liste</button>`}
       <div class="msg" id="pmsg"></div>
       ${closed ? '' : `<button class="btn" id="savePronos">${aDejaPronostique?'Modifier mes pronostics':'Enregistrer mes pronostics'}</button>`}
+      ${(!closed && aDejaPronostique) ? `<button class="btn-del" id="delPronos">Supprimer mon pronostic</button>` : ''}
     </div>
   `;
   document.getElementById('back').onclick = ()=>{ switchView('pronos'); };
@@ -943,6 +1070,8 @@ async function openMancheProno(mancheId, manche){
     setupPodium('450'); setupPodium('250');
     document.getElementById('savePronos').onclick = ()=>saveMancheProno(mancheId, manche);
     document.getElementById('proposeBtn').onclick = ()=>openProposeForm();
+    const delBtn = document.getElementById('delPronos');
+    if(delBtn) delBtn.onclick = ()=>deleteMancheProno(mancheId, manche);
     startCountdowns();
   }
 }
