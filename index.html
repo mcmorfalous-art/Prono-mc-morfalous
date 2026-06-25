@@ -575,7 +575,7 @@ function renderRegles(v){
       <div class="reg-block">
         <div class="reg-h"><span class="reg-num">2</span> Le barème par manche</div>
         <table class="reg-table">
-          <tr><td>Podium parfait (3 pilotes dans l'ordre exact)</td><td class="reg-pt">15 pts</td></tr>
+          <tr><td>Podium parfait (3 pilotes dans l'ordre exact)</td><td class="reg-pt">15 +3 bonus</td></tr>
           <tr><td>Les 3 bons pilotes mais dans le désordre</td><td class="reg-pt">12 pts</td></tr>
           <tr><td>2 pilotes bien placés</td><td class="reg-pt">10 pts</td></tr>
           <tr><td>2 bons pilotes : 1 bien placé, 1 mal placé</td><td class="reg-pt">9 pts</td></tr>
@@ -584,12 +584,23 @@ function renderRegles(v){
           <tr><td>1 bon pilote mais mal placé</td><td class="reg-pt">3 pts</td></tr>
           <tr><td>Aucun bon pilote</td><td class="reg-pt">0 pt</td></tr>
         </table>
-        <p class="reg-bonus"><b>Bonus 5e place</b> (optionnel, à double tranchant) : si tu le tentes et que tu trouves le 5e, tes points de la catégorie sont <b>doublés</b> ! Mais si tu te trompes, tu perds <b>3 points</b>. À jouer si tu te sens inspiré.</p>
+        <p class="reg-bonus"><b>Bonus podium parfait</b> : si tu places les 3 pilotes dans l'ordre exact, tu gagnes <b>+3 points</b> en plus (soit 18 pts) !<br><br><b>Bonus 5e place</b> (optionnel, à double tranchant) : si tu le tentes et que tu trouves le 5e, tes points de la catégorie sont <b>doublés</b> ! Mais si tu te trompes, tu perds <b>5 points</b>. À jouer si tu te sens inspiré.</p>
       </div>
 
       <div class="reg-block">
         <div class="reg-h"><span class="reg-num">3</span> Le prono championnat</div>
-        <p>En plus des manches, tu pronostiques le <b>podium final du championnat</b> (450 et 250). Attention : il se ferme à la <b>mi-saison</b> et une fois validé, c'est <b>définitif</b> ! Le barème est plus généreux (jusqu'à 30 pts par catégorie, bonus 5e ×3).</p>
+        <p>En plus des manches, tu pronostiques le <b>podium final du championnat</b> (450 et 250). Attention : il se ferme à la <b>mi-saison</b> et une fois validé, c'est <b>définitif</b> ! Le barème est plus généreux :</p>
+        <table class="reg-table">
+          <tr><td>Podium parfait (3 pilotes dans l'ordre exact)</td><td class="reg-pt">30 +5 bonus</td></tr>
+          <tr><td>Les 3 bons pilotes mais dans le désordre</td><td class="reg-pt">24 pts</td></tr>
+          <tr><td>2 pilotes bien placés</td><td class="reg-pt">20 pts</td></tr>
+          <tr><td>2 bons pilotes : 1 bien placé, 1 mal placé</td><td class="reg-pt">18 pts</td></tr>
+          <tr><td>2 bons pilotes mais mal placés</td><td class="reg-pt">16 pts</td></tr>
+          <tr><td>1 pilote bien placé</td><td class="reg-pt">10 pts</td></tr>
+          <tr><td>1 bon pilote mais mal placé</td><td class="reg-pt">6 pts</td></tr>
+          <tr><td>Aucun bon pilote</td><td class="reg-pt">0 pt</td></tr>
+        </table>
+        <p class="reg-bonus"><b>Bonus podium parfait championnat</b> : podium final dans l'ordre exact = <b>+5 points</b> (soit 35 pts) !<br><br><b>Bonus 5e place championnat</b> : si tu trouves le 5e du championnat, tes points sont <b>triplés</b> (×3) ! Mais si tu te trompes, tu perds <b>15 points</b>. Gros risque, grosse récompense.</p>
       </div>
 
       <div class="reg-block">
@@ -629,9 +640,11 @@ function scoreManche(prono, resultat){
   if(bons===3) pts = (bien===3)?15:12;
   else if(bons===2) pts = (bien===2)?10:(bien===1?9:8);
   else if(bons===1) pts = (bien===1)?5:3;
+  // bonus podium parfait : +3 (appliqué avant le bonus 5e)
+  if(bons===3 && bien===3) pts += 3;
   if(prono.joue_bonus5){
     if(prono.p5_pilote_id && resultat.p5_pilote_id && prono.p5_pilote_id===resultat.p5_pilote_id) pts*=2;
-    else pts-=3;
+    else pts-=5;
   }
   return pts;
 }
@@ -646,6 +659,8 @@ function scoreChamp(prono, resultat){
   if(bons===3) pts=(bien===3)?30:24;
   else if(bons===2) pts=(bien===2)?20:(bien===1?18:16);
   else if(bons===1) pts=(bien===1)?10:6;
+  // bonus podium parfait championnat : +5 (appliqué avant le bonus 5e)
+  if(bons===3 && bien===3) pts += 5;
   if(prono.joue_bonus5){
     if(prono.p5_pilote_id && resultat.p5_pilote_id && prono.p5_pilote_id===resultat.p5_pilote_id) pts*=3;
     else pts-=15;
