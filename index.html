@@ -133,6 +133,12 @@ header::after{
 .topbar-user{display:flex;align-items:center;gap:10px}
 .hello{font-size:15px;color:var(--bone)}
 .hello b{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.03em}
+.hello-btn{background:none;border:none;cursor:pointer;padding:0;display:inline-flex;align-items:center;gap:5px}
+.hello-btn:hover .edit-ico{opacity:1}
+.edit-ico{font-size:12px;color:var(--cyan);opacity:.5;transition:opacity .15s}
+.pf-info{display:flex;gap:18px;margin:4px 0 6px;font-size:13px;color:var(--bone-dim)}
+.pf-lab{display:block;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;
+  font-size:10px;letter-spacing:.06em;color:var(--steel)}
 .btn-ghost.sm{margin-top:0;padding:7px 12px;font-size:11px}
 
 /* navigation */
@@ -253,6 +259,17 @@ header::after{
 .mp-edit:hover{background:var(--cyan-deep)}
 .mp-del{background:none;color:#ff8a80;border:1px solid rgba(226,59,46,.4)}
 .mp-del:hover{background:rgba(226,59,46,.12)}
+
+/* stats perso (haut de Mes pronos) */
+.perso-stats{display:flex;gap:8px;margin-bottom:18px}
+.ps-item{flex:1;background:var(--night);border:1px solid var(--line2);border-radius:11px;
+  padding:12px 8px;text-align:center;min-width:0}
+.ps-val{font-family:'Archivo Black',sans-serif;font-size:19px;color:var(--cyan);
+  font-variant-numeric:tabular-nums;line-height:1.1;margin-bottom:5px}
+.ps-val.ps-pilote{font-size:13px;color:#ffd954;line-height:1.2;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ps-lab{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.04em;
+  font-size:10px;color:var(--bone-dim);line-height:1.2}
 
 /* vue stats */
 .stat-sec{margin-bottom:24px}
@@ -570,7 +587,7 @@ async function renderHome(session){
   app.innerHTML = `
     <div class="topbar">
       <div class="topbar-user">
-        <span class="hello">Salut <b>${profil?.pseudo || ''}</b></span>
+        <button class="hello hello-btn" id="openProfil">Salut <b>${profil?.pseudo || ''}</b> <span class="edit-ico">✎</span></button>
         ${isAdmin ? '<span class="badge-admin">★ Admin</span>' : ''}
       </div>
       <button class="btn-ghost sm" id="logout">Déconnexion</button>
@@ -585,6 +602,7 @@ async function renderHome(session){
     <div id="view"></div>
   `;
   document.getElementById('logout').onclick = async ()=>{ await sb.auth.signOut(); boot(); };
+  document.getElementById('openProfil').onclick = ()=> openProfil(profil);
   document.querySelectorAll('.nav-btn').forEach(b=>{
     b.onclick = ()=>{
       document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));
@@ -593,6 +611,47 @@ async function renderHome(session){
     };
   });
   switchView('pronos');
+}
+
+// ====== MON PROFIL (changer pseudo) ======
+function openProfil(profil){
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.innerHTML = `
+    <div class="modal">
+      <div class="sec-title" style="font-size:18px">Mon profil</div>
+      <p class="sec-sub">Ton pseudo est visible au classement. Ton nom et ton email restent privés.</p>
+      <div class="field">
+        <label>Pseudo</label>
+        <input id="pfPseudo" type="text" maxlength="30" value="${(profil?.pseudo||'').replace(/"/g,'&quot;')}">
+      </div>
+      <div class="pf-info">
+        <div><span class="pf-lab">Prénom</span> ${profil?.prenom||'—'}</div>
+        <div><span class="pf-lab">Nom</span> ${profil?.nom||'—'}</div>
+      </div>
+      <div class="msg" id="pfMsg"></div>
+      <div class="modal-actions">
+        <button class="btn-ghost" id="pfCancel">Fermer</button>
+        <button class="btn" id="pfSave" style="margin-top:0">Enregistrer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  document.getElementById('pfCancel').onclick = ()=> ov.remove();
+  document.getElementById('pfSave').onclick = async ()=>{
+    const nouveau = document.getElementById('pfPseudo').value.trim();
+    const m = document.getElementById('pfMsg');
+    if(nouveau.length < 2){ m.className='msg show err'; m.textContent="Choisis un pseudo d'au moins 2 caractères."; return; }
+    const { error } = await sb.from('profils').update({ pseudo: nouveau }).eq('id', currentSession.user.id);
+    if(error){
+      m.className='msg show err';
+      m.textContent = (error.message.includes('duplicate')||error.message.includes('unique'))
+        ? "Ce pseudo est déjà pris, choisis-en un autre." : error.message;
+      return;
+    }
+    m.className='msg show ok'; m.textContent="✓ Pseudo mis à jour !";
+    currentProfil = currentProfil || {}; currentProfil.pseudo = nouveau;
+    setTimeout(()=>{ ov.remove(); renderHome(currentSession); }, 1000);
+  };
 }
 
 function switchView(view){
@@ -610,18 +669,70 @@ async function renderMesPronos(v){
   await loadPilotes();
   const uid = currentSession.user.id;
 
-  const [pronosR, manchesR, pchampR] = await Promise.all([
+  const [pronosR, manchesR, pchampR, resultatsR, allPronosR, allProfilsR, allPchampR, rchampR] = await Promise.all([
     sb.from('pronos').select('*').eq('user_id', uid),
     sb.from('manches').select('*').order('ordre'),
     sb.from('pronos_championnat').select('*').eq('user_id', uid),
+    sb.from('resultats').select('*'),
+    sb.from('pronos').select('*'),
+    sb.from('profils').select('id,pseudo'),
+    sb.from('pronos_championnat').select('*'),
+    sb.from('resultat_championnat').select('*'),
   ]);
   const pronos = pronosR.data||[];
   const manches = manchesR.data||[];
   const pchamp = pchampR.data||[];
+  const resultats = resultatsR.data||[];
 
   // index pilote id -> "nom (#num)"
   const pidName = {};
   [...PILOTES['450'], ...PILOTES['250']].forEach(p=> pidName[p.id] = `${p.nom}${p.numero?` #${p.numero}`:''}`);
+
+  // ===== STATS PERSO =====
+  const resByKey={}; resultats.forEach(r=> resByKey[r.manche_id+'-'+r.categorie]=r);
+
+  // 1) moyenne de points par manche (sur mes pronos qui ont un résultat)
+  let totalPts=0, nbScored=0;
+  const ptsByPilote={};
+  pronos.forEach(pr=>{
+    const res=resByKey[pr.manche_id+'-'+pr.categorie];
+    if(!res) return;
+    const gain=scoreManche(pr,res);
+    totalPts+=gain; nbScored++;
+    // pilote porte-bonheur : pilotes bien pronostiqués qui ont rapporté
+    if(gain>0){
+      [pr.p1_pilote_id,pr.p2_pilote_id,pr.p3_pilote_id].forEach(id=>{
+        if(id && [res.p1_pilote_id,res.p2_pilote_id,res.p3_pilote_id].includes(id))
+          ptsByPilote[id]=(ptsByPilote[id]||0)+gain/3;
+      });
+    }
+  });
+  const moyenne = nbScored>0 ? (totalPts/nbScored).toFixed(1) : '—';
+
+  // 2) pilote porte-bonheur
+  let porteBonheur='—';
+  const pbEntries=Object.entries(ptsByPilote).sort((a,b)=>b[1]-a[1]);
+  if(pbEntries.length) porteBonheur = pidName[pbEntries[0][0]]||'—';
+
+  // 3) ma place au classement général (recalcul global)
+  const allPronos=allPronosR.data||[], allProfils=allProfilsR.data||[];
+  const allPchamp=allPchampR.data||[], rchamp=rchampR.data||[];
+  const rchampByCat={}; rchamp.forEach(r=>rchampByCat[r.categorie]=r);
+  const totals={}; allProfils.forEach(p=>totals[p.id]=0);
+  allPronos.forEach(pr=>{ const res=resByKey[pr.manche_id+'-'+pr.categorie]; if(res&&totals[pr.user_id]!==undefined) totals[pr.user_id]+=scoreManche(pr,res); });
+  allPchamp.forEach(pc=>{ const res=rchampByCat[pc.categorie]; if(res&&pc.valide&&totals[pc.user_id]!==undefined) totals[pc.user_id]+=scoreChamp(pc,res); });
+  const sorted=Object.entries(totals).sort((a,b)=>b[1]-a[1]);
+  const maPlace = sorted.findIndex(e=>e[0]===uid)+1;
+  const nbJoueurs = sorted.length;
+  const placeStr = (maPlace>0 && resultats.length>0) ? `${maPlace}${maPlace===1?'er':'e'} / ${nbJoueurs}` : '—';
+
+  const statsPerso = `
+    <div class="perso-stats">
+      <div class="ps-item"><div class="ps-val">${placeStr}</div><div class="ps-lab">Classement général</div></div>
+      <div class="ps-item"><div class="ps-val">${moyenne}</div><div class="ps-lab">Moy. pts / manche</div></div>
+      <div class="ps-item"><div class="ps-val ps-pilote">${porteBonheur}</div><div class="ps-lab">Pilote porte-bonheur</div></div>
+    </div>
+  `;
 
   // regrouper pronos par manche
   const byManche = {};
@@ -677,6 +788,7 @@ async function renderMesPronos(v){
     <div class="card">
       <div class="sec-title">Mes pronostics</div>
       <p class="sec-sub">Retrouve tous tes pronos ici. Tu peux les modifier ou les supprimer tant que la manche est ouverte.</p>
+      ${resultats.length>0 ? statsPerso : ''}
       ${hasAny ? mancheCards + champCard
         : '<div class="placeholder">Aucun pronostic pour le moment. Rends-toi dans l onglet Pronos pour commencer !</div>'}
     </div>
