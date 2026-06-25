@@ -253,6 +253,19 @@ header::after{
 .mp-edit:hover{background:var(--cyan-deep)}
 .mp-del{background:none;color:#ff8a80;border:1px solid rgba(226,59,46,.4)}
 .mp-del:hover{background:rgba(226,59,46,.12)}
+
+/* vue stats */
+.stat-sec{margin-bottom:24px}
+.stat-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:17px;
+  text-transform:uppercase;letter-spacing:.03em;color:#fff;margin-bottom:3px}
+.stat-desc{font-size:12.5px;color:var(--bone-dim);margin-bottom:12px;line-height:1.4}
+.stat-row{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line)}
+.stat-rk{font-family:'Archivo Black',sans-serif;font-size:13px;color:var(--steel);min-width:22px}
+.stat-name{flex:1;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:15px;
+  display:flex;align-items:center;gap:7px;color:var(--bone)}
+.stat-val{font-family:'Archivo Black',sans-serif;font-size:14px;color:var(--cyan);
+  white-space:nowrap;font-variant-numeric:tabular-nums}
+.stat-sub{font-family:'Barlow',sans-serif;font-weight:400;font-size:11px;color:var(--bone-dim)}
 .podium{background:var(--night);border:1px solid var(--line2);border-radius:13px;padding:16px;margin-bottom:14px}
 .podium-head{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;
   text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;display:flex;align-items:center;gap:8px}
@@ -585,7 +598,7 @@ async function renderHome(session){
 function switchView(view){
   const v = document.getElementById('view');
   if(view === 'admin'){ return renderAdmin(v); }
-  if(view === 'classement'){ return renderClassement(v); }
+  if(view === 'classement'){ return renderClassementTab(v); }
   if(view === 'regles'){ return renderRegles(v); }
   if(view === 'mespronos'){ return renderMesPronos(v); }
   return renderPronos(v);
@@ -794,8 +807,24 @@ function scoreChamp(prono, resultat){
   return pts;
 }
 
-// ====== VUE CLASSEMENT ======
+// ====== VUE CLASSEMENT + STATS ======
 let classState = { cat:'global' };
+let classMode = 'classement'; // 'classement' | 'stats'
+
+function renderClassementTab(v){
+  v.innerHTML = `
+    <div class="subnav">
+      <button class="sub-btn ${classMode==='classement'?'active':''}" id="cmClass">Classement</button>
+      <button class="sub-btn ${classMode==='stats'?'active':''}" id="cmStats">Stats</button>
+    </div>
+    <div id="classBody"></div>
+  `;
+  document.getElementById('cmClass').onclick = ()=>{ classMode='classement'; renderClassementTab(v); };
+  document.getElementById('cmStats').onclick = ()=>{ classMode='stats'; renderClassementTab(v); };
+  const body = document.getElementById('classBody');
+  if(classMode==='stats') return renderStats(body);
+  return renderClassement(body);
+}
 
 async function renderClassement(v){
   v.innerHTML = `<div class="card"><div class="loading">Calcul des classements…</div></div>`;
@@ -914,6 +943,104 @@ function rankRow(r, i, cat){
     <td class="rk-total">${r.total}</td>
   </tr>
   <tr class="detail-row"><td colspan="5"><div class="det-wrap">${detailHtml}</div></td></tr>`;
+}
+
+// ====== VUE STATS (données du jeu) ======
+async function renderStats(v){
+  v.innerHTML = `<div class="card"><div class="loading">Calcul des stats…</div></div>`;
+  await loadPilotes();
+
+  const [pronosR, resultatsR, pchampR] = await Promise.all([
+    sb.from('pronos').select('*'),
+    sb.from('resultats').select('*'),
+    sb.from('pronos_championnat').select('*'),
+  ]);
+  const pronos = pronosR.data||[];
+  const resultats = resultatsR.data||[];
+  const pchamp = pchampR.data||[];
+
+  const pidInfo = {};
+  [...PILOTES['450'], ...PILOTES['250']].forEach(p=> pidInfo[p.id] = p);
+  const nameOf = id => pidInfo[id] ? `${pidInfo[id].nom}${pidInfo[id].numero?` #${pidInfo[id].numero}`:''}` : '?';
+  const catOf  = id => pidInfo[id] ? pidInfo[id].categorie : null;
+
+  // 1) PILOTES LES PLUS PRONOSTIQUÉS (toutes positions, manches + champ)
+  const popCount = {}; // id -> nb de fois cité dans un podium
+  const addPos = (id)=>{ if(id) popCount[id]=(popCount[id]||0)+1; };
+  pronos.forEach(pr=>{ addPos(pr.p1_pilote_id); addPos(pr.p2_pilote_id); addPos(pr.p3_pilote_id); if(pr.joue_bonus5) addPos(pr.p5_pilote_id); });
+  pchamp.forEach(pc=>{ addPos(pc.p1_pilote_id); addPos(pc.p2_pilote_id); addPos(pc.p3_pilote_id); if(pc.joue_bonus5) addPos(pc.p5_pilote_id); });
+  const popList = Object.entries(popCount).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+  // 2) PALMARÈS DANS LES RÉSULTATS (victoires = p1, podiums = p1/p2/p3)
+  const wins={}, podiums={};
+  resultats.forEach(r=>{
+    if(r.p1_pilote_id){ wins[r.p1_pilote_id]=(wins[r.p1_pilote_id]||0)+1; }
+    [r.p1_pilote_id,r.p2_pilote_id,r.p3_pilote_id].forEach(id=>{ if(id) podiums[id]=(podiums[id]||0)+1; });
+  });
+  const palmares = Object.keys(podiums)
+    .map(id=>({id, wins:wins[id]||0, podiums:podiums[id]}))
+    .sort((a,b)=> b.wins-a.wins || b.podiums-a.podiums).slice(0,10);
+
+  // 3) PILOTES QUI RAPPORTENT LE PLUS DE POINTS
+  // pour chaque prono, on calcule les points et on les attribue aux pilotes du podium
+  const resByKey={}; resultats.forEach(r=> resByKey[r.manche_id+'-'+r.categorie]=r);
+  const ptsByPilote={};
+  pronos.forEach(pr=>{
+    const res=resByKey[pr.manche_id+'-'+pr.categorie];
+    if(!res) return;
+    const gain=scoreManche(pr,res);
+    if(gain<=0) return;
+    // répartir le "mérite" sur les pilotes du podium pronostiqué qui étaient bons
+    [pr.p1_pilote_id,pr.p2_pilote_id,pr.p3_pilote_id].forEach(id=>{
+      if(id && [res.p1_pilote_id,res.p2_pilote_id,res.p3_pilote_id].includes(id)){
+        ptsByPilote[id]=(ptsByPilote[id]||0)+gain/3;
+      }
+    });
+  });
+  const rapporteurs = Object.entries(ptsByPilote)
+    .map(([id,p])=>({id, pts:Math.round(p)}))
+    .sort((a,b)=>b.pts-a.pts).slice(0,10);
+
+  const hasData = pronos.length>0 || resultats.length>0;
+
+  const popBlock = popList.length ? popList.map(([id,n],i)=>`
+    <div class="stat-row"><span class="stat-rk">${i+1}</span>
+      <span class="stat-name">${nameOf(id)} ${catOf(id)?`<span class="cat-mini cat-${catOf(id)}">${catOf(id)}</span>`:''}</span>
+      <span class="stat-val">${n}×</span></div>`).join('')
+    : '<div class="det-empty">Pas encore de pronostics enregistrés.</div>';
+
+  const palmBlock = palmares.length ? palmares.map((p,i)=>`
+    <div class="stat-row"><span class="stat-rk">${i+1}</span>
+      <span class="stat-name">${nameOf(p.id)} ${catOf(p.id)?`<span class="cat-mini cat-${catOf(p.id)}">${catOf(p.id)}</span>`:''}</span>
+      <span class="stat-val">${p.wins>0?`🏆 ${p.wins}`:''} <span class="stat-sub">${p.podiums} pod.</span></span></div>`).join('')
+    : '<div class="det-empty">Aucun résultat saisi pour le moment.</div>';
+
+  const rapBlock = rapporteurs.length ? rapporteurs.map((p,i)=>`
+    <div class="stat-row"><span class="stat-rk">${i+1}</span>
+      <span class="stat-name">${nameOf(p.id)} ${catOf(p.id)?`<span class="cat-mini cat-${catOf(p.id)}">${catOf(p.id)}</span>`:''}</span>
+      <span class="stat-val">${p.pts} pts</span></div>`).join('')
+    : '<div class="det-empty">Pas encore de points distribués.</div>';
+
+  v.innerHTML = `
+    <div class="card">
+      ${!hasData ? '<div class="placeholder">Les stats apparaîtront dès les premiers pronostics et résultats.</div>' : `
+      <div class="stat-sec">
+        <div class="stat-title">⭐ Les plus pronostiqués</div>
+        <p class="stat-desc">Les pilotes sur qui le club mise le plus.</p>
+        ${popBlock}
+      </div>
+      <div class="stat-sec">
+        <div class="stat-title">🏆 Palmarès des pilotes</div>
+        <p class="stat-desc">Victoires et podiums dans les manches saisies.</p>
+        ${palmBlock}
+      </div>
+      <div class="stat-sec">
+        <div class="stat-title">💰 Les meilleurs tuyaux</div>
+        <p class="stat-desc">Les pilotes qui ont rapporté le plus de points aux joueurs.</p>
+        ${rapBlock}
+      </div>`}
+    </div>
+  `;
 }
 
 // ====== DONNÉES partagées ======
