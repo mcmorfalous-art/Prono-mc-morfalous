@@ -295,9 +295,10 @@ header::after{
 .podium{background:var(--night);border:1px solid var(--line2);border-radius:13px;padding:16px;margin-bottom:14px}
 .podium-head{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;
   text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;display:flex;align-items:center;gap:8px}
-.cat-tag{font-family:'Archivo Black',sans-serif;font-size:13px;padding:2px 9px;border-radius:6px;color:#fff}
+.cat-tag{font-family:'Archivo Black',sans-serif;font-size:13px;padding:2px 9px;border-radius:6px;color:#fff;background:var(--steel)}
 .cat-450{background:var(--red)}
 .cat-250{background:var(--cyan-deep)}
+.cat-mini{background:var(--steel)}
 .lock{margin-left:auto;font-size:12px;color:var(--bone-dim);font-weight:400;letter-spacing:0}
 .pod-row{display:flex;align-items:center;gap:12px;margin-bottom:9px}
 .pod-row label{font-family:'Archivo Black',sans-serif;font-size:14px;color:var(--bone-dim);min-width:30px}
@@ -587,6 +588,20 @@ let currentSession = null;
 let currentChamp = 'AMA'; // championnat sélectionné (valeur interne)
 const CHAMPS = ['AMA','MXGP','Vendée'];
 const CHAMP_LABELS = { 'AMA':'MX US', 'MXGP':'MXGP', 'Vendée':'Vendée' };
+// catégories par championnat (ordre = ordre d'affichage)
+const CHAMP_CATS = {
+  'AMA':    ['450','250'],
+  'MXGP':   ['450','250'],
+  'Vendée': ['MX1','MX2','125','Vétérans','65'],
+};
+// catégories du championnat courant
+function cats(){ return CHAMP_CATS[currentChamp] || ['450','250']; }
+// catégories présentes à une manche donnée (Vendée = variable, sinon toutes)
+function mancheCats(manche){
+  if(manche && Array.isArray(manche.categories) && manche.categories.length)
+    return manche.categories;
+  return cats();
+}
 
 async function renderHome(session){
   currentSession = session;
@@ -622,8 +637,9 @@ async function renderHome(session){
     b.onclick = ()=>{
       currentChamp = b.dataset.champ;
       document.querySelectorAll('.champ-btn').forEach(x=>x.classList.toggle('active', x.dataset.champ===currentChamp));
-      // vider le cache pilotes (ils dépendent du championnat)
-      PILOTES = { '250':[], '450':[] };
+      // vider le cache pilotes + config (dépendent du championnat)
+      PILOTES = {};
+      CHAMP_CLOSES_LOADED_FOR = null;
       // recharger la vue active
       const active = document.querySelector('.nav-btn.active');
       switchView(active ? active.dataset.view : 'pronos');
@@ -715,7 +731,7 @@ async function renderMesPronos(v){
 
   // index pilote id -> "nom (#num)"
   const pidName = {};
-  [...PILOTES['450'], ...PILOTES['250']].forEach(p=> pidName[p.id] = `${p.nom}${p.numero?` #${p.numero}`:''}`);
+  allPilotes().forEach(p=> pidName[p.id] = `${p.nom}${p.numero?` #${p.numero}`:''}`);
 
   // ===== STATS PERSO =====
   const resByKey={}; resultats.filter(r=>mancheIds.has(r.manche_id)).forEach(r=> resByKey[r.manche_id+'-'+r.categorie]=r);
@@ -998,14 +1014,15 @@ async function renderClassement(v){
   manches.forEach(m=> mancheById[m.id]=m);
 
   // points par joueur et par catégorie + détail par manche
-  const pts = {};     // pts[userId] = {250:x, 450:y}
+  const myCats = cats();
+  const pts = {};     // pts[userId] = { cat: points }
   const detail = {};  // detail[userId] = [{manche, cat, points}...]
-  profils.forEach(p=>{ pts[p.id]={'250':0,'450':0}; detail[p.id]=[]; });
+  profils.forEach(p=>{ pts[p.id]={}; myCats.forEach(c=>pts[p.id][c]=0); detail[p.id]=[]; });
 
   // points manches
   pronos.forEach(pr=>{
     const res = resByKey[pr.manche_id+'-'+pr.categorie];
-    if(res && pts[pr.user_id]){
+    if(res && pts[pr.user_id] && pts[pr.user_id][pr.categorie]!==undefined){
       const gain = scoreManche(pr, res);
       pts[pr.user_id][pr.categorie] += gain;
       const m = mancheById[pr.manche_id];
@@ -1015,7 +1032,7 @@ async function renderClassement(v){
   // points championnat
   pchamp.forEach(pc=>{
     const res = rchampByCat[pc.categorie];
-    if(res && pts[pc.user_id] && pc.valide){
+    if(res && pts[pc.user_id] && pts[pc.user_id][pc.categorie]!==undefined && pc.valide){
       const gain = scoreChamp(pc, res);
       pts[pc.user_id][pc.categorie] += gain;
       detail[pc.user_id].push({ label:'Championnat', cat:pc.categorie, points:gain, ordre:100 });
@@ -1023,28 +1040,33 @@ async function renderClassement(v){
   });
 
   // construire le classement selon la catégorie choisie
-  const cat = classState.cat;
+  let cat = classState.cat;
+  // si la catégorie sélectionnée n'existe pas dans ce championnat, repasser en global
+  if(cat!=='global' && !myCats.includes(cat)) cat='global';
   const ranked = profils.map(p=>{
-    const p250 = pts[p.id]['250'], p450 = pts[p.id]['450'];
-    const total = cat==='250'?p250 : cat==='450'?p450 : (p250+p450);
-    return { id:p.id, pseudo:p.pseudo, p250, p450, total, detail:detail[p.id] };
+    const perCat = {}; myCats.forEach(c=> perCat[c]=pts[p.id][c]||0);
+    const totalAll = myCats.reduce((s,c)=> s+perCat[c], 0);
+    const total = cat==='global' ? totalAll : (perCat[cat]||0);
+    return { id:p.id, pseudo:p.pseudo, perCat, total, detail:detail[p.id] };
   }).sort((a,b)=> b.total - a.total);
 
   const hasAnyResult = resultats.length>0 || rchamp.length>0;
 
+  // en-têtes des colonnes par catégorie (seulement en vue Générale)
+  const catHeaders = cat==='global' ? myCats.map(c=>`<th>${c}</th>`).join('') : '';
+
   v.innerHTML = `
     <div class="card">
-      <div class="subnav">
+      <div class="subnav rank-subnav">
         <button class="sub-btn ${cat==='global'?'active':''}" data-cat="global">Général</button>
-        <button class="sub-btn ${cat==='450'?'active':''}" data-cat="450">450</button>
-        <button class="sub-btn ${cat==='250'?'active':''}" data-cat="250">250</button>
+        ${myCats.map(c=>`<button class="sub-btn ${cat===c?'active':''}" data-cat="${c}">${c}</button>`).join('')}
       </div>
       ${!hasAnyResult ? '<div class="placeholder">Aucun résultat saisi pour le moment. Le classement apparaîtra dès le premier résultat de manche enregistré.</div>'
       : ranked.length===0 ? '<div class="placeholder">Aucun joueur inscrit pour le moment.</div>'
       : `<div class="rank-hint">Touche un joueur pour voir le détail de ses points</div>
          <table class="rank-table">
-          <thead><tr><th>#</th><th>Pilote</th><th>${cat==='global'?'450':''}</th><th>${cat==='global'?'250':''}</th><th>Pts</th></tr></thead>
-          <tbody>${ranked.map((r,i)=>rankRow(r,i,cat)).join('')}</tbody>
+          <thead><tr><th>#</th><th>Pilote</th>${catHeaders}<th>Pts</th></tr></thead>
+          <tbody>${ranked.map((r,i)=>rankRow(r,i,cat,myCats)).join('')}</tbody>
         </table>`}
     </div>
   `;
@@ -1062,12 +1084,13 @@ async function renderClassement(v){
   });
 }
 
-function rankRow(r, i, cat){
+function rankRow(r, i, cat, myCats){
   const medal = i===0?'gold':i===1?'silver':i===2?'bronze':'';
   const rankBadge = i<3 ? `<span class="medal ${medal}">${i+1}</span>` : `<span class="rk">${i+1}</span>`;
-  const extra = cat==='global'
-    ? `<td class="rk-sub">${r.p450}</td><td class="rk-sub">${r.p250}</td>`
-    : `<td></td><td></td>`;
+  const cols = (cat==='global' && myCats)
+    ? myCats.map(c=>`<td class="rk-sub">${r.perCat[c]||0}</td>`).join('')
+    : '';
+  const colspan = 2 + ((cat==='global' && myCats) ? myCats.length : 0) + 1;
 
   // construire le détail (filtré selon la catégorie affichée)
   const items = (r.detail||[])
@@ -1075,7 +1098,7 @@ function rankRow(r, i, cat){
     .sort((a,b)=> a.ordre-b.ordre);
   const detailHtml = items.length
     ? items.map(d=>`<div class="det-line">
-        <span class="det-label">${d.label} <span class="det-cat cat-${d.cat}">${d.cat}</span></span>
+        <span class="det-label">${d.label} <span class="det-cat">${d.cat}</span></span>
         <span class="det-pts ${d.points<0?'neg':''}">${d.points>0?'+':''}${d.points}</span>
       </div>`).join('')
     : '<div class="det-empty">Aucun point sur cette catégorie pour le moment.</div>';
@@ -1083,10 +1106,10 @@ function rankRow(r, i, cat){
   return `<tr class="rank-row">
     <td>${rankBadge}</td>
     <td class="rk-name">${r.pseudo}</td>
-    ${extra}
+    ${cols}
     <td class="rk-total">${r.total}</td>
   </tr>
-  <tr class="detail-row"><td colspan="5"><div class="det-wrap">${detailHtml}</div></td></tr>`;
+  <tr class="detail-row"><td colspan="${colspan}"><div class="det-wrap">${detailHtml}</div></td></tr>`;
 }
 
 // ====== VUE STATS (données du jeu) ======
@@ -1106,7 +1129,7 @@ async function renderStats(v){
   const pchamp = pchampR.data||[];
 
   const pidInfo = {};
-  [...PILOTES['450'], ...PILOTES['250']].forEach(p=> pidInfo[p.id] = p);
+  allPilotes().forEach(p=> pidInfo[p.id] = p);
   const nameOf = id => pidInfo[id] ? `${pidInfo[id].nom}${pidInfo[id].numero?` #${pidInfo[id].numero}`:''}` : '?';
   const catOf  = id => pidInfo[id] ? pidInfo[id].categorie : null;
 
@@ -1190,14 +1213,16 @@ async function renderStats(v){
 }
 
 // ====== DONNÉES partagées ======
-let PILOTES = { '250': [], '450': [] };
+let PILOTES = {}; // { categorie: [...] } dynamique selon le championnat
 
 async function loadPilotes(){
-  if(PILOTES['250'].length) return;
+  if(Object.keys(PILOTES).length) return;
+  cats().forEach(c=> PILOTES[c]=[]);
   const { data } = await sb.from('pilotes').select('*').eq('actif', true).eq('valide', true)
     .eq('championnat', currentChamp).order('numero');
   (data||[]).forEach(p=>{ if(PILOTES[p.categorie]) PILOTES[p.categorie].push(p); });
 }
+function allPilotes(){ return Object.values(PILOTES).flat(); }
 
 function isClosed(manche){
   if(manche.terminee) return true;
@@ -1237,13 +1262,13 @@ async function renderPronos(v){
   const pronoSet = new Set((mesPronos||[]).map(p=>p.manche_id+'-'+p.categorie));
 
   const card = (m, closedFlag)=>{
-    const has250 = pronoSet.has(m.id+'-250');
-    const has450 = pronoSet.has(m.id+'-450');
+    const mc = mancheCats(m);
+    const nbDone = mc.filter(c=> pronoSet.has(m.id+'-'+c)).length;
     const etat = closedFlag
       ? '<span class="m-closed">Fermée</span>'
       : `<span class="m-open" data-countdown="${m.closes_at||''}">${countdownText(m.closes_at)}</span>`;
-    const done = (has250&&has450) ? '<span class="m-done">✓ pronostiqué</span>'
-               : (has250||has450) ? '<span class="m-partial">à compléter</span>' : '';
+    const done = (nbDone===mc.length) ? '<span class="m-done">✓ pronostiqué</span>'
+               : (nbDone>0) ? '<span class="m-partial">à compléter</span>' : '';
     return `<button class="manche-row ${closedFlag?'closed':''}" data-manche="${m.id}">
       <span class="m-ord">${m.ordre}</span>
       <span class="m-info"><span class="m-nom">${m.nom}</span><span class="m-date">${frDate(m.date_course)}</span></span>
@@ -1331,8 +1356,7 @@ async function openMancheProno(mancheId, manche){
       <p class="sec-sub">${frDate(manche.date_course)}</p>
       ${statusBanner}
       ${closed ? '' : `<div class="countdown-banner" data-countdown="${manche.closes_at||''}">${countdownText(manche.closes_at)}</div>`}
-      ${podiumBlock('450', byCat['450'], closed)}
-      ${podiumBlock('250', byCat['250'], closed)}
+      ${mancheCats(manche).map(c=> podiumBlock(c, byCat[c], closed)).join('')}
       ${closed ? '' : `<button class="propose-btn" id="proposeBtn">+ Proposer un pilote absent de la liste</button>`}
       <div class="msg" id="pmsg"></div>
       ${closed ? '' : `<button class="btn" id="savePronos">${aDejaPronostique?'Modifier mes pronostics':'Enregistrer mes pronostics'}</button>`}
@@ -1341,7 +1365,7 @@ async function openMancheProno(mancheId, manche){
   `;
   document.getElementById('back').onclick = ()=>{ switchView('pronos'); };
   if(!closed){
-    setupPodium('450'); setupPodium('250');
+    mancheCats(manche).forEach(c=>setupPodium(c));
     document.getElementById('savePronos').onclick = ()=>saveMancheProno(mancheId, manche);
     document.getElementById('proposeBtn').onclick = ()=>openProposeForm();
     const delBtn = document.getElementById('delPronos');
@@ -1396,7 +1420,7 @@ function setupPodium(cat){
 async function saveMancheProno(mancheId, manche){
   if(isClosed(manche)){ return showPMsg("Cette manche est fermée.", 'err'); }
   const rows = [];
-  for(const cat of ['450','250']){
+  for(const cat of mancheCats(manche)){
     const block = document.querySelector(`.podium[data-cat="${cat}"]`);
     const get = pos => block.querySelector(`select[data-pos="${pos}"]`).value || null;
     const bonus = block.querySelector('input[data-bonus5]').checked;
@@ -1448,7 +1472,7 @@ function openProposeForm(){
       <div class="pil-addrow">
         <input id="prNum" type="number" placeholder="#" class="pil-num">
         <input id="prNom" type="text" placeholder="Nom complet" class="pil-nom">
-        <select id="prCat" class="pil-cat-sel"><option value="450">450</option><option value="250">250</option></select>
+        <select id="prCat" class="pil-cat-sel">${cats().map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
       </div>
       <div class="msg" id="prmsg"></div>
       <div class="modal-actions">
@@ -1478,11 +1502,14 @@ function openProposeForm(){
 
 // ----- prono championnat -----
 let CHAMP_CLOSES_AT = undefined;
+let CHAMP_CLOSES_LOADED_FOR = null; // pour quel championnat la date est chargée
 
 async function loadConfig(){
-  if(CHAMP_CLOSES_AT !== undefined) return;
-  const { data } = await sb.from('config').select('champ_closes_at').eq('id',1).single();
+  if(CHAMP_CLOSES_LOADED_FOR === currentChamp) return; // déjà chargé pour ce champ
+  const { data } = await sb.from('config_champ').select('champ_closes_at')
+    .eq('championnat', currentChamp).maybeSingle();
   CHAMP_CLOSES_AT = data?.champ_closes_at || null;
+  CHAMP_CLOSES_LOADED_FOR = currentChamp;
 }
 
 function champClosed(){
@@ -1496,9 +1523,7 @@ async function renderChampPronos(body){
   const { data: existing } = await sb.from('pronos_championnat').select('*')
     .eq('user_id', currentSession.user.id).eq('championnat', currentChamp);
   const byCat = {}; (existing||[]).forEach(p=>byCat[p.categorie]=p);
-  const valide450 = byCat['450']?.valide;
-  const valide250 = byCat['250']?.valide;
-  const dejaValide = valide450 && valide250;
+  const dejaValide = cats().every(c=> byCat[c]?.valide);
   const closed = champClosed();
 
   // bandeau d'info sur la deadline
@@ -1517,8 +1542,7 @@ async function renderChampPronos(body){
   body.innerHTML = `
     <p class="sec-sub">Pronostique le podium FINAL du championnat (1er/2e/3e). Ferme à la mi-saison, et une fois validé c'est figé !</p>
     ${banner}
-    ${champBlock('450', byCat['450'], lockAll)}
-    ${champBlock('250', byCat['250'], lockAll)}
+    ${cats().map(c=> champBlock(c, byCat[c], lockAll)).join('')}
     <div class="msg" id="cmsg"></div>
     ${dejaValide ? '<div class="voted-note2">✓ Tes pronostics championnat sont validés et figés</div>'
       : closed ? '<div class="voted-note2" style="background:rgba(143,166,187,.1);border-color:var(--line2);color:var(--bone-dim)">Les pronostics championnat sont fermés (mi-saison dépassée)</div>'
@@ -1526,7 +1550,7 @@ async function renderChampPronos(body){
          <p class="hint" style="text-align:center">⚠️ La validation est définitive, vérifie bien avant !</p>`}
   `;
   if(!lockAll){
-    setupChampPodium('450'); setupChampPodium('250');
+    cats().forEach(c=>setupChampPodium(c));
     document.getElementById('saveChamp').onclick = saveChampProno;
     startCountdowns();
   } else if(!closed) {
@@ -1560,7 +1584,7 @@ function setupChampPodium(cat){ setupPodium(cat); } // même logique anti-doublo
 async function saveChampProno(){
   if(champClosed()) return showCMsg("Les pronostics championnat sont fermés (mi-saison dépassée).", 'err');
   const rows = [];
-  for(const cat of ['450','250']){
+  for(const cat of cats()){
     const block = document.querySelector(`.podium.champ[data-cat="${cat}"]`);
     if(!block) continue;
     const get = pos => block.querySelector(`select[data-pos="${pos}"]`).value || null;
@@ -1571,7 +1595,7 @@ async function saveChampProno(){
     rows.push({ user_id: currentSession.user.id, categorie: cat, championnat: currentChamp,
       p1_pilote_id:p1, p2_pilote_id:p2, p3_pilote_id:p3, p5_pilote_id:p5, joue_bonus5:bonus, valide:true });
   }
-  if(rows.length<2) return showCMsg("Remplis les deux podiums (250 et 450).", 'err');
+  if(rows.length < cats().length) return showCMsg("Remplis tous les podiums du championnat.", 'err');
 
   if(!confirm("Valider définitivement tes pronostics championnat ? Tu ne pourras plus les modifier.")) return;
   showCMsg("Validation…", 'ok');
@@ -1612,9 +1636,10 @@ async function renderAdminResultats(body){
   const resSet = new Set((resultats||[]).map(r=>r.manche_id+'-'+r.categorie));
 
   const rows = (manches||[]).map(m=>{
-    const r450 = resSet.has(m.id+'-450'), r250 = resSet.has(m.id+'-250');
-    const resState = (r450&&r250) ? '<span class="tag-done2">✓ résultats</span>'
-                   : (r450||r250) ? '<span class="tag-partial">partiel</span>'
+    const mc = mancheCats(m);
+    const done = mc.filter(c=> resSet.has(m.id+'-'+c)).length;
+    const resState = (done===mc.length) ? '<span class="tag-done2">✓ résultats</span>'
+                   : (done>0) ? '<span class="tag-partial">partiel</span>'
                    : '<span class="tag-none">à saisir</span>';
     return `<button class="manche-row admin-row" data-manche="${m.id}">
       <span class="m-ord">${m.ordre}</span>
@@ -1664,16 +1689,16 @@ async function renderAdminPilotes(body){
     <div class="sec-title">Gestion des pilotes</div>
     <p class="sec-sub">Valide les propositions des joueurs, modifie ou ajoute des pilotes.</p>
     ${proposBlock}
-    <div class="pil-cat"><span class="cat-tag cat-450">450</span> ${valides.filter(p=>p.categorie==='450').length} pilotes</div>
-    <div class="pil-list">${list('450')}</div>
-    <div class="pil-cat"><span class="cat-tag cat-250">250</span> ${valides.filter(p=>p.categorie==='250').length} pilotes</div>
-    <div class="pil-list">${list('250')}</div>
+    ${cats().map(c=>`
+      <div class="pil-cat"><span class="cat-tag cat-${c}">${c}</span> ${valides.filter(p=>p.categorie===c).length} pilotes</div>
+      <div class="pil-list">${list(c)}</div>
+    `).join('')}
     <div class="pil-add">
       <div class="sec-title" style="font-size:15px">Ajouter un pilote</div>
       <div class="pil-addrow">
         <input id="newNum" type="number" placeholder="#" class="pil-num">
         <input id="newNom" type="text" placeholder="Nom complet" class="pil-nom">
-        <select id="newCat" class="pil-cat-sel"><option value="450">450</option><option value="250">250</option></select>
+        <select id="newCat" class="pil-cat-sel">${cats().map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
       </div>
       <button class="btn" id="addPilote">Ajouter ce pilote</button>
     </div>
@@ -1685,7 +1710,7 @@ async function renderAdminPilotes(body){
     btn.onclick = async ()=>{
       const { error } = await sb.from('pilotes').update({ valide:true }).eq('id', +btn.dataset.id);
       if(error) return showPilMsg(error.message,'err');
-      PILOTES={'250':[],'450':[]}; renderAdminPilotes(body);
+      PILOTES={}; renderAdminPilotes(body);
     };
   });
   body.querySelectorAll('.propos-no').forEach(btn=>{
@@ -1706,7 +1731,7 @@ async function renderAdminPilotes(body){
       const { error } = await sb.from('pilotes').update({ numero, nom }).eq('id', id);
       if(error) return showPilMsg(error.message, 'err');
       showPilMsg("✓ Pilote modifié.", 'ok');
-      PILOTES = { '250':[], '450':[] };
+      PILOTES = {};
     };
   });
 
@@ -1721,7 +1746,7 @@ async function renderAdminPilotes(body){
         return showPilMsg("Ce pilote existe déjà dans cette catégorie.", 'err');
       return showPilMsg(error.message, 'err');
     }
-    PILOTES = { '250':[], '450':[] };
+    PILOTES = {};
     renderAdminPilotes(body);
   };
 }
@@ -1741,15 +1766,14 @@ async function openResultEntry(mancheId, manche){
       <button class="back" id="back">← Retour à la liste</button>
       <div class="sec-title">${manche.nom} — résultats</div>
       <p class="sec-sub">${frDate(manche.date_course)} · saisis le podium réel de chaque catégorie</p>
-      ${resultBlock('450', byCat['450'])}
-      ${resultBlock('250', byCat['250'])}
+      ${mancheCats(manche).map(c=> resultBlock(c, byCat[c])).join('')}
       <div class="msg" id="rmsg"></div>
       <button class="btn" id="saveRes">Enregistrer les résultats</button>
     </div>
   `;
   document.getElementById('back').onclick = ()=>{ switchView('admin'); };
-  setupResult('450'); setupResult('250');
-  document.getElementById('saveRes').onclick = ()=>saveResult(mancheId);
+  mancheCats(manche).forEach(c=>setupResult(c));
+  document.getElementById('saveRes').onclick = ()=>saveResult(mancheId, manche);
 }
 
 function resultBlock(cat, existing){
@@ -1784,9 +1808,9 @@ function setupResult(cat){
   refresh();
 }
 
-async function saveResult(mancheId){
+async function saveResult(mancheId, manche){
   const rows = [];
-  for(const cat of ['450','250']){
+  for(const cat of mancheCats(manche)){
     const block = document.querySelector(`.podium.result[data-cat="${cat}"]`);
     const get = pos => block.querySelector(`select[data-pos="${pos}"]`).value || null;
     const p1=get('p1'), p2=get('p2'), p3=get('p3'), p5=get('p5');
