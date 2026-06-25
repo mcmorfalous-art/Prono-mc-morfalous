@@ -306,6 +306,22 @@ header::after{
 .cat-450{background:var(--red)}
 .cat-250{background:var(--cyan-deep)}
 .cat-mini{background:var(--steel)}
+
+/* épreuves annulées */
+.m-annulee{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;
+  text-transform:uppercase;letter-spacing:.05em;color:#ff8a80;
+  background:rgba(226,59,46,.12);padding:3px 9px;border-radius:6px}
+.manche-row.annulee{opacity:.55;cursor:default}
+.manche-row.annulee .m-nom{text-decoration:line-through}
+.admin-manche-wrap{display:flex;gap:8px;align-items:stretch;margin-bottom:8px}
+.admin-manche-wrap .manche-row{flex:1;margin-bottom:0}
+.admin-manche-wrap.is-annulee .manche-row{opacity:.55}
+.admin-manche-wrap.is-annulee .m-nom{text-decoration:line-through}
+.annul-btn{flex-shrink:0;padding:0 12px;border-radius:9px;cursor:pointer;
+  border:1px solid var(--line2);background:var(--night);color:var(--bone-dim);
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;
+  text-transform:uppercase;letter-spacing:.04em}
+.annul-btn:hover{border-color:var(--red);color:#ff8a80}
 .lock{margin-left:auto;font-size:12px;color:var(--bone-dim);font-weight:400;letter-spacing:0}
 .pod-row{display:flex;align-items:center;gap:12px;margin-bottom:9px}
 .pod-row label{font-family:'Archivo Black',sans-serif;font-size:14px;color:var(--bone-dim);min-width:30px}
@@ -740,7 +756,7 @@ async function renderMesPronos(v){
   const resultats = (resultatsR.data||[]);
 
   // ids des manches du championnat courant (pour filtrer pronos/résultats)
-  const mancheIds = new Set(manches.map(m=>m.id));
+  const mancheIds = new Set(manches.filter(m=>!m.annulee).map(m=>m.id));
   const pronos = (pronosR.data||[]).filter(pr=> mancheIds.has(pr.manche_id));
 
   // index pilote id -> "nom (#num)"
@@ -1013,7 +1029,7 @@ async function renderClassement(v){
   ]);
   const profils = profilsR.data||[];
   const manches = manchesR.data||[];
-  const mancheIds = new Set(manches.map(m=>m.id));
+  const mancheIds = new Set(manches.filter(m=>!m.annulee).map(m=>m.id));
   const pronos = (pronosR.data||[]).filter(pr=> mancheIds.has(pr.manche_id));
   const resultats = (resultatsR.data||[]).filter(r=> mancheIds.has(r.manche_id));
   const pchamp = pchampR.data||[];
@@ -1135,9 +1151,9 @@ async function renderStats(v){
     sb.from('pronos').select('*'),
     sb.from('resultats').select('*'),
     sb.from('pronos_championnat').select('*').eq('championnat', currentChamp),
-    sb.from('manches').select('id').eq('championnat', currentChamp),
+    sb.from('manches').select('id,annulee').eq('championnat', currentChamp),
   ]);
-  const mancheIds = new Set((manchesR.data||[]).map(m=>m.id));
+  const mancheIds = new Set((manchesR.data||[]).filter(m=>!m.annulee).map(m=>m.id));
   const pronos = (pronosR.data||[]).filter(pr=> mancheIds.has(pr.manche_id));
   const resultats = (resultatsR.data||[]).filter(r=> mancheIds.has(r.manche_id));
   const pchamp = pchampR.data||[];
@@ -1267,8 +1283,10 @@ async function renderPronos(v){
 
   // liste des manches : ouvertes en premier
   const body = document.getElementById('pronoBody');
-  const open = (manches||[]).filter(m=>!isClosed(m));
-  const closed = (manches||[]).filter(m=>isClosed(m));
+  const annulees = (manches||[]).filter(m=>m.annulee);
+  const actives = (manches||[]).filter(m=>!m.annulee);
+  const open = actives.filter(m=>!isClosed(m));
+  const closed = actives.filter(m=>isClosed(m));
 
   // charger mes pronos existants pour afficher l'état
   const { data: mesPronos } = await sb.from('pronos').select('manche_id,categorie')
@@ -1289,12 +1307,18 @@ async function renderPronos(v){
       <span class="m-state">${etat}${done}</span>
     </button>`;
   };
+  const cardAnnulee = (m)=>`<div class="manche-row annulee">
+      <span class="m-ord">${m.ordre}</span>
+      <span class="m-info"><span class="m-nom">${m.nom}</span><span class="m-date">${frDate(m.date_course)}</span></span>
+      <span class="m-state"><span class="m-annulee">Annulée</span></span>
+    </div>`;
 
   body.innerHTML = `
     ${open.length ? `<div class="grp-title">À pronostiquer</div>` + open.map(m=>card(m,false)).join('') : '<div class="placeholder">Aucune manche ouverte au pronostic pour le moment.</div>'}
     ${closed.length ? `<div class="grp-title muted">Manches fermées</div>` + closed.map(m=>card(m,true)).join('') : ''}
+    ${annulees.length ? `<div class="grp-title muted">Épreuves annulées</div>` + annulees.map(cardAnnulee).join('') : ''}
   `;
-  body.querySelectorAll('.manche-row').forEach(b=>{
+  body.querySelectorAll('.manche-row:not(.annulee)').forEach(b=>{
     b.onclick = ()=> openMancheProno(+b.dataset.manche, manches.find(m=>m.id==b.dataset.manche));
   });
   startCountdowns();
@@ -1652,23 +1676,42 @@ async function renderAdminResultats(body){
   const rows = (manches||[]).map(m=>{
     const mc = mancheCats(m);
     const done = mc.filter(c=> resSet.has(m.id+'-'+c)).length;
-    const resState = (done===mc.length) ? '<span class="tag-done2">✓ résultats</span>'
+    const resState = m.annulee ? '<span class="m-annulee">Annulée</span>'
+                   : (done===mc.length) ? '<span class="tag-done2">✓ résultats</span>'
                    : (done>0) ? '<span class="tag-partial">partiel</span>'
                    : '<span class="tag-none">à saisir</span>';
-    return `<button class="manche-row admin-row" data-manche="${m.id}">
-      <span class="m-ord">${m.ordre}</span>
-      <span class="m-info"><span class="m-nom">${m.nom}</span><span class="m-date">${frDate(m.date_course)}</span></span>
-      <span class="m-state">${m.terminee?'<span class="m-closed">course passée</span>':'<span class="m-open">à venir</span>'}${resState}</span>
-    </button>`;
+    return `<div class="admin-manche-wrap ${m.annulee?'is-annulee':''}">
+      <button class="manche-row admin-row" data-manche="${m.id}" ${m.annulee?'disabled':''}>
+        <span class="m-ord">${m.ordre}</span>
+        <span class="m-info"><span class="m-nom">${m.nom}</span><span class="m-date">${frDate(m.date_course)}</span></span>
+        <span class="m-state">${resState}</span>
+      </button>
+      <button class="annul-btn" data-annul="${m.id}" data-etat="${m.annulee?1:0}">
+        ${m.annulee?'Réactiver':'Annuler'}
+      </button>
+    </div>`;
   }).join('');
 
   body.innerHTML = `
     <div class="sec-title">Saisie des résultats</div>
-    <p class="sec-sub">Clique sur une manche pour entrer le podium réel (1er/2e/3e + 5e pour le bonus).</p>
+    <p class="sec-sub">Clique sur une manche pour entrer le podium réel. Le bouton "Annuler" marque une épreuve non courue.</p>
     ${rows}
   `;
-  body.querySelectorAll('.admin-row').forEach(b=>{
+  body.querySelectorAll('.admin-row:not([disabled])').forEach(b=>{
     b.onclick = ()=> openResultEntry(+b.dataset.manche, manches.find(m=>m.id==b.dataset.manche));
+  });
+  body.querySelectorAll('.annul-btn').forEach(b=>{
+    b.onclick = async ()=>{
+      const id = +b.dataset.annul;
+      const nouvelEtat = b.dataset.etat==='1' ? false : true;
+      const m = manches.find(x=>x.id===id);
+      const msg = nouvelEtat
+        ? `Marquer "${m.nom}" comme ANNULÉE ? Elle ne comptera pas dans les classements.`
+        : `Réactiver "${m.nom}" ?`;
+      if(!confirm(msg)) return;
+      await sb.from('manches').update({ annulee: nouvelEtat }).eq('id', id);
+      renderAdminResultats(body);
+    };
   });
 }
 
