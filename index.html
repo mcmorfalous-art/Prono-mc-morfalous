@@ -138,9 +138,9 @@ header::after{
 /* navigation */
 .nav{display:flex;gap:6px;margin-bottom:18px;background:var(--night2);
   border:1px solid var(--line);border-radius:12px;padding:4px}
-.nav-btn{flex:1;padding:10px 8px;border:none;background:none;cursor:pointer;border-radius:9px;
-  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;
-  text-transform:uppercase;letter-spacing:.06em;color:var(--bone-dim)}
+.nav-btn{flex:1;padding:10px 5px;border:none;background:none;cursor:pointer;border-radius:9px;
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;
+  text-transform:uppercase;letter-spacing:.03em;color:var(--bone-dim);white-space:nowrap}
 .nav-btn.active{background:linear-gradient(180deg,var(--cyan),var(--cyan-deep));color:#fff}
 
 /* sections */
@@ -206,6 +206,24 @@ header::after{
   color:var(--cyan);text-align:center;padding:10px;border-radius:10px;margin-bottom:16px;
   font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;
   letter-spacing:.06em;font-size:14px;font-variant-numeric:tabular-nums}
+
+/* bandeau de statut du prono */
+.status-banner{text-align:center;padding:11px 14px;border-radius:10px;margin-bottom:10px;
+  font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13.5px;line-height:1.4}
+.status-banner.open{background:rgba(30,167,225,.08);border:1px solid rgba(30,167,225,.3);color:var(--cyan)}
+.status-banner.done{background:rgba(47,168,79,.1);border:1px solid rgba(47,168,79,.35);color:#7ee29a}
+.status-banner.closed{background:var(--night2);border:1px solid var(--line2);color:var(--bone-dim)}
+
+/* modale de confirmation */
+.confirm-modal{text-align:center}
+.confirm-check{width:60px;height:60px;border-radius:50%;margin:0 auto 14px;
+  background:linear-gradient(180deg,var(--green),#1f7a38);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;
+  box-shadow:0 6px 20px rgba(47,168,79,.4)}
+.confirm-title{font-family:'Archivo Black',sans-serif;font-size:20px;text-transform:uppercase;
+  margin-bottom:10px;color:#fff}
+.confirm-text{color:var(--bone-dim);font-size:14px;line-height:1.5;margin-bottom:18px}
+.confirm-text b{color:var(--bone)}
 .podium{background:var(--night);border:1px solid var(--line2);border-radius:13px;padding:16px;margin-bottom:14px}
 .podium-head{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;
   text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;display:flex;align-items:center;gap:8px}
@@ -245,6 +263,91 @@ header::after{
 .rk-sub{color:var(--bone-dim);font-size:13px;font-variant-numeric:tabular-nums}
 .rk-total{font-family:'Archivo Black',sans-serif;font-size:16px;color:var(--cyan);
   font-variant-numeric:tabular-nums}
+.rank-hint{font-size:11.5px;color:var(--bone-dim);text-align:center;margin-bottom:10px;
+  font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.06em}
+.rank-row{cursor:pointer;transition:background .12s}
+.rank-row:hover{background:rgba(30,167,225,.06)}
+.detail-row td{padding:0!important;border-bottom:none!important}
+.det-wrap{max-height:0;overflow:hidden;transition:max-height .25s ease}
+.detail-row.open .det-wrap{max-height:600px;padding:6px 0 12px}
+.det-line{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;
+  margin:0 4px;border-bottom:1px solid var(--line)}
+.det-label{font-size:13px;color:var(--bone-dim);display:flex;align-items:center;gap:7px}
+.det-cat{font-family:'Archivo Black',sans-serif;font-size:9px;padding:1px 5px;border-radius:4px;color:#fff}
+.det-pts{font-family:'Archivo Black',sans-serif;font-size:14px;color:var(--green);font-variant-numeric:tabular-nums}
+.det-pts.neg{color:var(--red)}
+.det-empty{font-size:12.5px;color:var(--bone-dim);text-align:center;padding:10px;font-style:italic}
+
+/* page règles */
+.regles .reg-intro{color:var(--bone-dim);font-size:14px;line-height:1.5;margin-bottom:20px}
+.reg-block{margin-bottom:20px}
+.reg-h{display:flex;align-items:center;gap:10px;font-family:'Barlow Condensed',sans-serif;
+  font-weight:700;font-size:17px;text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px;color:#fff}
+.reg-num{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;
+  border-radius:7px;background:linear-gradient(180deg,var(--cyan),var(--cyan-deep));color:#fff;
+  font-family:'Archivo Black',sans-serif;font-size:13px;flex-shrink:0}
+.reg-block p{font-size:13.5px;line-height:1.55;color:var(--bone-dim)}
+.reg-block p b{color:var(--bone)}
+.reg-table{width:100%;border-collapse:collapse;margin:6px 0}
+.reg-table td{padding:7px 8px;border-bottom:1px solid var(--line);font-size:13px;color:var(--bone-dim)}
+.reg-pt{text-align:right;font-family:'Archivo Black',sans-serif;color:var(--cyan);
+  font-size:13px;white-space:nowrap}
+.reg-bonus{margin-top:10px;padding:11px;background:rgba(226,59,46,.08);border:1px solid rgba(226,59,46,.25);
+  border-radius:9px;font-size:13px!important}
+.reg-prizes .reg-h{color:#ffd954}
+.reg-prizes{padding:14px;background:rgba(255,217,84,.06);border:1px solid rgba(255,217,84,.2);border-radius:11px}
+.reg-foot{text-align:center;color:var(--bone-dim);font-size:13px;margin-top:20px;
+  padding-top:16px;border-top:1px solid var(--line2)}
+
+/* gestion pilotes */
+.pil-cat{display:flex;align-items:center;gap:8px;margin:16px 0 8px;
+  font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;font-weight:700;
+  font-size:13px;color:var(--bone-dim);letter-spacing:.05em}
+.pil-list{display:flex;flex-direction:column;gap:6px}
+.pil-row{display:flex;gap:8px;align-items:center}
+.pil-num{width:56px;padding:9px;border-radius:9px;background:var(--night);
+  border:1.5px solid var(--line2);color:var(--bone);font-family:'Barlow',sans-serif;
+  font-size:14px;text-align:center}
+.pil-nom{flex:1;padding:9px 12px;border-radius:9px;background:var(--night);
+  border:1.5px solid var(--line2);color:var(--bone);font-family:'Barlow',sans-serif;font-size:14px}
+.pil-num:focus,.pil-nom:focus{outline:none;border-color:var(--cyan)}
+.pil-save{width:40px;border:none;border-radius:9px;cursor:pointer;
+  background:var(--steel);color:#fff;font-size:16px;font-weight:700}
+.pil-save:hover{background:var(--cyan-deep)}
+.pil-add{margin-top:24px;padding-top:18px;border-top:1px dashed var(--line2)}
+.pil-addrow{display:flex;gap:8px;margin-bottom:10px}
+.pil-cat-sel{width:74px;padding:9px;border-radius:9px;background:var(--night);
+  border:1.5px solid var(--line2);color:var(--bone);font-family:'Barlow',sans-serif;font-size:14px}
+
+/* bouton proposer */
+.propose-btn{width:100%;padding:11px;margin-bottom:12px;border:1.5px dashed var(--line2);
+  background:none;color:var(--cyan);border-radius:11px;cursor:pointer;
+  font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.06em;
+  font-weight:700;font-size:13px}
+.propose-btn:hover{border-color:var(--cyan);background:rgba(30,167,225,.06)}
+
+/* overlay / modale */
+.overlay{position:fixed;inset:0;z-index:60;background:rgba(6,14,22,.85);backdrop-filter:blur(4px);
+  display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:linear-gradient(180deg,var(--night2),var(--night));border:1px solid var(--line2);
+  border-radius:16px;padding:22px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal-actions{display:flex;gap:10px;margin-top:14px}
+.modal-actions .btn-ghost{flex:0 0 auto;margin-top:0}
+.modal-actions .btn{flex:1}
+
+/* propositions admin */
+.propos-zone{background:rgba(30,167,225,.06);border:1px solid rgba(30,167,225,.25);
+  border-radius:12px;padding:14px;margin-bottom:18px}
+.propos-row{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:9px 0;border-bottom:1px solid var(--line)}
+.propos-row:last-child{border-bottom:none}
+.propos-info{display:flex;align-items:center;gap:8px;font-size:14px}
+.cat-mini{font-family:'Archivo Black',sans-serif;font-size:10px;padding:1px 6px;border-radius:5px;color:#fff}
+.propos-actions{display:flex;gap:6px}
+.propos-ok,.propos-no{border:none;border-radius:8px;cursor:pointer;padding:7px 12px;
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.propos-ok{background:var(--green);color:#fff}
+.propos-no{background:var(--night);color:var(--bone-dim);border:1px solid var(--line2)}
 </style>
 </head>
 <body>
@@ -431,8 +534,9 @@ async function renderHome(session){
       <button class="btn-ghost sm" id="logout">Déconnexion</button>
     </div>
     <nav class="nav" id="nav">
-      <button class="nav-btn active" data-view="pronos">Pronostics</button>
+      <button class="nav-btn active" data-view="pronos">Pronos</button>
       <button class="nav-btn" data-view="classement">Classement</button>
+      <button class="nav-btn" data-view="regles">Règles</button>
       ${isAdmin ? '<button class="nav-btn" data-view="admin">Admin</button>' : ''}
     </nav>
     <div id="view"></div>
@@ -452,7 +556,65 @@ function switchView(view){
   const v = document.getElementById('view');
   if(view === 'admin'){ return renderAdmin(v); }
   if(view === 'classement'){ return renderClassement(v); }
+  if(view === 'regles'){ return renderRegles(v); }
   return renderPronos(v);
+}
+
+// ====== VUE RÈGLES / COMMENT JOUER ======
+function renderRegles(v){
+  v.innerHTML = `
+    <div class="card regles">
+      <div class="sec-title">Comment jouer</div>
+      <p class="reg-intro">Le jeu de pronostics du MC Les Morfalous. Pronostique les podiums du championnat AMA Pro Motocross et grimpe au classement !</p>
+
+      <div class="reg-block">
+        <div class="reg-h"><span class="reg-num">1</span> Le principe</div>
+        <p>Avant chaque manche, tu pronostiques le <b>podium des deux catégories</b> (450 et 250) : 1er, 2e et 3e. Tu peux aussi tenter un <b>bonus sur le 5e</b>. Plus tu es précis, plus tu marques.</p>
+      </div>
+
+      <div class="reg-block">
+        <div class="reg-h"><span class="reg-num">2</span> Le barème par manche</div>
+        <table class="reg-table">
+          <tr><td>Podium parfait (3 pilotes dans l'ordre exact)</td><td class="reg-pt">15 pts</td></tr>
+          <tr><td>Les 3 bons pilotes mais dans le désordre</td><td class="reg-pt">12 pts</td></tr>
+          <tr><td>2 pilotes bien placés</td><td class="reg-pt">10 pts</td></tr>
+          <tr><td>2 bons pilotes : 1 bien placé, 1 mal placé</td><td class="reg-pt">9 pts</td></tr>
+          <tr><td>2 bons pilotes mais mal placés</td><td class="reg-pt">8 pts</td></tr>
+          <tr><td>1 pilote bien placé</td><td class="reg-pt">5 pts</td></tr>
+          <tr><td>1 bon pilote mais mal placé</td><td class="reg-pt">3 pts</td></tr>
+          <tr><td>Aucun bon pilote</td><td class="reg-pt">0 pt</td></tr>
+        </table>
+        <p class="reg-bonus"><b>Bonus 5e place</b> (optionnel, à double tranchant) : si tu le tentes et que tu trouves le 5e, tes points de la catégorie sont <b>doublés</b> ! Mais si tu te trompes, tu perds <b>3 points</b>. À jouer si tu te sens inspiré.</p>
+      </div>
+
+      <div class="reg-block">
+        <div class="reg-h"><span class="reg-num">3</span> Le prono championnat</div>
+        <p>En plus des manches, tu pronostiques le <b>podium final du championnat</b> (450 et 250). Attention : il se ferme à la <b>mi-saison</b> et une fois validé, c'est <b>définitif</b> ! Le barème est plus généreux (jusqu'à 30 pts par catégorie, bonus 5e ×3).</p>
+      </div>
+
+      <div class="reg-block">
+        <div class="reg-h"><span class="reg-num">4</span> Les fermetures</div>
+        <p>Les pronos d'une manche ferment <b>la veille de la course à 23h59</b>. Un compte à rebours t'indique le temps restant. Après la fermeture, impossible de modifier : anticipe !</p>
+      </div>
+
+      <div class="reg-block">
+        <div class="reg-h"><span class="reg-num">5</span> Les classements</div>
+        <p>Trois classements sont tenus : <b>450</b>, <b>250</b> et <b>Général</b> (les deux cumulés). Touche ton nom au classement pour voir le détail de tes points manche par manche.</p>
+      </div>
+
+      <div class="reg-block">
+        <div class="reg-h"><span class="reg-num">6</span> Un pilote manque ?</div>
+        <p>Si un pilote engagé n'est pas dans la liste, utilise le bouton <b>« + Proposer un pilote absent »</b> sur l'écran de prono. L'admin du club le validera et il apparaîtra pour tout le monde.</p>
+      </div>
+
+      <div class="reg-block reg-prizes">
+        <div class="reg-h"><span class="reg-num">🏆</span> Les lots (classement général)</div>
+        <p>En fin de saison, les <b>3 premiers du classement général</b> remportent des lots offerts par le club. De quoi ajouter un peu de piment à la bagarre !</p>
+      </div>
+
+      <p class="reg-foot">Des questions ? Demande à l'organisation du club. Bonne chance et que le meilleur pronostiqueur gagne ! 🏁</p>
+    </div>
+  `;
 }
 
 // ====== MOTEUR DE POINTS ======
@@ -498,38 +660,52 @@ async function renderClassement(v){
   v.innerHTML = `<div class="card"><div class="loading">Calcul des classements…</div></div>`;
 
   // tout charger
-  const [profilsR, pronosR, resultatsR, pchampR, rchampR] = await Promise.all([
+  const [profilsR, pronosR, resultatsR, pchampR, rchampR, manchesR] = await Promise.all([
     sb.from('profils').select('id,pseudo'),
     sb.from('pronos').select('*'),
     sb.from('resultats').select('*'),
     sb.from('pronos_championnat').select('*'),
     sb.from('resultat_championnat').select('*'),
+    sb.from('manches').select('*').order('ordre'),
   ]);
   const profils = profilsR.data||[];
   const pronos = pronosR.data||[];
   const resultats = resultatsR.data||[];
   const pchamp = pchampR.data||[];
   const rchamp = rchampR.data||[];
+  const manches = manchesR.data||[];
 
   // index résultats par manche+cat
   const resByKey = {};
   resultats.forEach(r=> resByKey[r.manche_id+'-'+r.categorie]=r);
   const rchampByCat = {};
   rchamp.forEach(r=> rchampByCat[r.categorie]=r);
+  const mancheById = {};
+  manches.forEach(m=> mancheById[m.id]=m);
 
-  // points par joueur et par catégorie
-  const pts = {}; // pts[userId] = {250:x, 450:y}
-  profils.forEach(p=> pts[p.id]={'250':0,'450':0});
+  // points par joueur et par catégorie + détail par manche
+  const pts = {};     // pts[userId] = {250:x, 450:y}
+  const detail = {};  // detail[userId] = [{manche, cat, points}...]
+  profils.forEach(p=>{ pts[p.id]={'250':0,'450':0}; detail[p.id]=[]; });
 
   // points manches
   pronos.forEach(pr=>{
     const res = resByKey[pr.manche_id+'-'+pr.categorie];
-    if(res && pts[pr.user_id]) pts[pr.user_id][pr.categorie] += scoreManche(pr, res);
+    if(res && pts[pr.user_id]){
+      const gain = scoreManche(pr, res);
+      pts[pr.user_id][pr.categorie] += gain;
+      const m = mancheById[pr.manche_id];
+      detail[pr.user_id].push({ label:(m?m.nom:'Manche'), cat:pr.categorie, points:gain, ordre:(m?m.ordre:99) });
+    }
   });
   // points championnat
   pchamp.forEach(pc=>{
     const res = rchampByCat[pc.categorie];
-    if(res && pts[pc.user_id] && pc.valide) pts[pc.user_id][pc.categorie] += scoreChamp(pc, res);
+    if(res && pts[pc.user_id] && pc.valide){
+      const gain = scoreChamp(pc, res);
+      pts[pc.user_id][pc.categorie] += gain;
+      detail[pc.user_id].push({ label:'Championnat', cat:pc.categorie, points:gain, ordre:100 });
+    }
   });
 
   // construire le classement selon la catégorie choisie
@@ -537,7 +713,7 @@ async function renderClassement(v){
   const ranked = profils.map(p=>{
     const p250 = pts[p.id]['250'], p450 = pts[p.id]['450'];
     const total = cat==='250'?p250 : cat==='450'?p450 : (p250+p450);
-    return { pseudo:p.pseudo, p250, p450, total };
+    return { id:p.id, pseudo:p.pseudo, p250, p450, total, detail:detail[p.id] };
   }).sort((a,b)=> b.total - a.total);
 
   const hasAnyResult = resultats.length>0 || rchamp.length>0;
@@ -551,7 +727,8 @@ async function renderClassement(v){
       </div>
       ${!hasAnyResult ? '<div class="placeholder">Aucun résultat saisi pour le moment. Le classement apparaîtra dès le premier résultat de manche enregistré.</div>'
       : ranked.length===0 ? '<div class="placeholder">Aucun joueur inscrit pour le moment.</div>'
-      : `<table class="rank-table">
+      : `<div class="rank-hint">Touche un joueur pour voir le détail de ses points</div>
+         <table class="rank-table">
           <thead><tr><th>#</th><th>Pilote</th><th>${cat==='global'?'450':''}</th><th>${cat==='global'?'250':''}</th><th>Pts</th></tr></thead>
           <tbody>${ranked.map((r,i)=>rankRow(r,i,cat)).join('')}</tbody>
         </table>`}
@@ -559,6 +736,15 @@ async function renderClassement(v){
   `;
   v.querySelectorAll('.sub-btn').forEach(b=>{
     b.onclick = ()=>{ classState.cat=b.dataset.cat; renderClassement(v); };
+  });
+  // clic sur une ligne → afficher / masquer le détail
+  v.querySelectorAll('.rank-row').forEach(row=>{
+    row.onclick = ()=>{
+      const det = row.nextElementSibling;
+      if(det && det.classList.contains('detail-row')){
+        det.classList.toggle('open');
+      }
+    };
   });
 }
 
@@ -568,12 +754,25 @@ function rankRow(r, i, cat){
   const extra = cat==='global'
     ? `<td class="rk-sub">${r.p450}</td><td class="rk-sub">${r.p250}</td>`
     : `<td></td><td></td>`;
-  return `<tr>
+
+  // construire le détail (filtré selon la catégorie affichée)
+  const items = (r.detail||[])
+    .filter(d => cat==='global' ? true : d.cat===cat)
+    .sort((a,b)=> a.ordre-b.ordre);
+  const detailHtml = items.length
+    ? items.map(d=>`<div class="det-line">
+        <span class="det-label">${d.label} <span class="det-cat cat-${d.cat}">${d.cat}</span></span>
+        <span class="det-pts ${d.points<0?'neg':''}">${d.points>0?'+':''}${d.points}</span>
+      </div>`).join('')
+    : '<div class="det-empty">Aucun point sur cette catégorie pour le moment.</div>';
+
+  return `<tr class="rank-row">
     <td>${rankBadge}</td>
     <td class="rk-name">${r.pseudo}</td>
     ${extra}
     <td class="rk-total">${r.total}</td>
-  </tr>`;
+  </tr>
+  <tr class="detail-row"><td colspan="5"><div class="det-wrap">${detailHtml}</div></td></tr>`;
 }
 
 // ====== DONNÉES partagées ======
@@ -581,7 +780,7 @@ let PILOTES = { '250': [], '450': [] };
 
 async function loadPilotes(){
   if(PILOTES['250'].length) return;
-  const { data } = await sb.from('pilotes').select('*').eq('actif', true).order('numero');
+  const { data } = await sb.from('pilotes').select('*').eq('actif', true).eq('valide', true).order('numero');
   (data||[]).forEach(p=>{ if(PILOTES[p.categorie]) PILOTES[p.categorie].push(p); });
 }
 
@@ -693,24 +892,42 @@ async function openMancheProno(mancheId, manche){
     .eq('user_id', currentSession.user.id).eq('manche_id', mancheId);
   const byCat = {};
   (existing||[]).forEach(p=> byCat[p.categorie]=p);
+  const aDejaPronostique = (existing||[]).length > 0;
+
+  // date de fermeture lisible
+  const closeStr = manche.closes_at
+    ? new Date(manche.closes_at).toLocaleString('fr-FR',{weekday:'long',day:'2-digit',month:'long',hour:'2-digit',minute:'2-digit'})
+    : null;
+
+  // bandeau de statut clair
+  let statusBanner;
+  if(closed){
+    statusBanner = `<div class="status-banner closed">🔒 Pronostics fermés — non modifiable</div>`;
+  } else if(aDejaPronostique){
+    statusBanner = `<div class="status-banner done">✓ Tu as déjà pronostiqué${closeStr?` — modifiable jusqu'au ${closeStr}`:''}</div>`;
+  } else {
+    statusBanner = `<div class="status-banner open">À pronostiquer${closeStr?` — ferme le ${closeStr}`:''}</div>`;
+  }
 
   v.innerHTML = `
     <div class="card">
       <button class="back" id="back">← Retour aux manches</button>
       <div class="sec-title">${manche.nom}</div>
-      <p class="sec-sub">${frDate(manche.date_course)} ·
-        ${closed ? 'Pronostics fermés' : 'Choisis ton podium pour chaque catégorie'}</p>
+      <p class="sec-sub">${frDate(manche.date_course)}</p>
+      ${statusBanner}
       ${closed ? '' : `<div class="countdown-banner" data-countdown="${manche.closes_at||''}">${countdownText(manche.closes_at)}</div>`}
       ${podiumBlock('450', byCat['450'], closed)}
       ${podiumBlock('250', byCat['250'], closed)}
+      ${closed ? '' : `<button class="propose-btn" id="proposeBtn">+ Proposer un pilote absent de la liste</button>`}
       <div class="msg" id="pmsg"></div>
-      ${closed ? '' : `<button class="btn" id="savePronos">Enregistrer mes pronostics</button>`}
+      ${closed ? '' : `<button class="btn" id="savePronos">${aDejaPronostique?'Modifier mes pronostics':'Enregistrer mes pronostics'}</button>`}
     </div>
   `;
   document.getElementById('back').onclick = ()=>{ switchView('pronos'); };
   if(!closed){
     setupPodium('450'); setupPodium('250');
     document.getElementById('savePronos').onclick = ()=>saveMancheProno(mancheId, manche);
+    document.getElementById('proposeBtn').onclick = ()=>openProposeForm();
     startCountdowns();
   }
 }
@@ -779,10 +996,67 @@ async function saveMancheProno(mancheId, manche){
   showPMsg("Enregistrement…", 'ok');
   const { error } = await sb.from('pronos').upsert(rows, { onConflict:'user_id,manche_id,categorie' });
   if(error) return showPMsg(error.message, 'err');
-  showPMsg("✓ Pronostics enregistrés ! Tu peux les modifier jusqu'à la fermeture.", 'ok');
+  // confirmation claire en overlay
+  showConfirmOverlay(manche);
+}
+
+function showConfirmOverlay(manche){
+  const closeStr = manche.closes_at
+    ? new Date(manche.closes_at).toLocaleString('fr-FR',{weekday:'long',day:'2-digit',month:'long',hour:'2-digit',minute:'2-digit'})
+    : null;
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.innerHTML = `
+    <div class="modal confirm-modal">
+      <div class="confirm-check">✓</div>
+      <div class="confirm-title">Pronostics enregistrés !</div>
+      <p class="confirm-text">Ton podium pour <b>${manche.nom}</b> est bien validé.${closeStr?`<br>Tu peux encore le modifier jusqu'au <b>${closeStr}</b>.`:''}</p>
+      <button class="btn" id="confirmOk" style="margin-top:4px">Compris</button>
+    </div>`;
+  document.body.appendChild(ov);
+  document.getElementById('confirmOk').onclick = ()=>{ ov.remove(); switchView('pronos'); };
 }
 
 function showPMsg(t,type){ const m=document.getElementById('pmsg'); if(m){ m.textContent=t; m.className='msg show '+type; } }
+
+// ----- proposer un pilote (joueur) -----
+function openProposeForm(){
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.innerHTML = `
+    <div class="modal">
+      <div class="sec-title" style="font-size:17px">Proposer un pilote</div>
+      <p class="sec-sub">Il sera ajouté à la liste une fois validé par l'admin.</p>
+      <div class="pil-addrow">
+        <input id="prNum" type="number" placeholder="#" class="pil-num">
+        <input id="prNom" type="text" placeholder="Nom complet" class="pil-nom">
+        <select id="prCat" class="pil-cat-sel"><option value="450">450</option><option value="250">250</option></select>
+      </div>
+      <div class="msg" id="prmsg"></div>
+      <div class="modal-actions">
+        <button class="btn-ghost" id="prCancel">Annuler</button>
+        <button class="btn" id="prSend" style="margin-top:0">Envoyer la proposition</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  document.getElementById('prCancel').onclick = ()=> ov.remove();
+  document.getElementById('prSend').onclick = async ()=>{
+    const numero = document.getElementById('prNum').value || null;
+    const nom = document.getElementById('prNom').value.trim();
+    const categorie = document.getElementById('prCat').value;
+    const m = document.getElementById('prmsg');
+    if(!nom){ m.className='msg show err'; m.textContent="Entre le nom du pilote."; return; }
+    // anti-doublon basique : vérifie si un nom proche existe déjà (validé ou non)
+    const { data: existing } = await sb.from('pilotes').select('nom').ilike('nom', nom);
+    if(existing && existing.length){ m.className='msg show err'; m.textContent="Ce pilote semble déjà exister."; return; }
+    const { error } = await sb.from('pilotes').insert({
+      numero, nom, categorie, valide:false, propose_par: currentSession.user.id
+    });
+    if(error){ m.className='msg show err'; m.textContent=error.message; return; }
+    m.className='msg show ok'; m.textContent="✓ Proposition envoyée ! L'admin la validera bientôt.";
+    setTimeout(()=> ov.remove(), 1800);
+  };
+}
 
 // ----- prono championnat -----
 let CHAMP_CLOSES_AT = undefined;
@@ -891,19 +1165,35 @@ async function saveChampProno(){
 
 function showCMsg(t,type){ const m=document.getElementById('cmsg'); if(m){ m.textContent=t; m.className='msg show '+type; } }
 
-// ====== ADMIN : gestion du calendrier + saisie résultats ======
+// ====== ADMIN : sous-navigation (résultats / pilotes) ======
+let adminTab = 'resultats';
+
 async function renderAdmin(v){
-  v.innerHTML = `<div class="card"><div class="loading">Chargement du calendrier…</div></div>`;
+  v.innerHTML = `
+    <div class="card">
+      <div class="subnav">
+        <button class="sub-btn ${adminTab==='resultats'?'active':''}" id="atRes">Résultats</button>
+        <button class="sub-btn ${adminTab==='pilotes'?'active':''}" id="atPil">Pilotes</button>
+      </div>
+      <div id="adminBody"></div>
+    </div>
+  `;
+  document.getElementById('atRes').onclick = ()=>{ adminTab='resultats'; renderAdmin(v); };
+  document.getElementById('atPil').onclick = ()=>{ adminTab='pilotes'; renderAdmin(v); };
+  if(adminTab==='pilotes') return renderAdminPilotes(document.getElementById('adminBody'));
+  return renderAdminResultats(document.getElementById('adminBody'));
+}
+
+// ====== ADMIN · RÉSULTATS (liste cliquable) ======
+async function renderAdminResultats(body){
+  body.innerHTML = `<div class="loading">Chargement…</div>`;
   await loadPilotes();
   const { data: manches, error } = await sb.from('manches').select('*').order('ordre');
-  if(error){ v.innerHTML = `<div class="card"><div class="msg err show">${error.message}</div></div>`; return; }
-
-  // charger quels résultats sont déjà saisis
+  if(error){ body.innerHTML = `<div class="msg err show">${error.message}</div>`; return; }
   const { data: resultats } = await sb.from('resultats').select('manche_id,categorie');
   const resSet = new Set((resultats||[]).map(r=>r.manche_id+'-'+r.categorie));
 
   const rows = (manches||[]).map(m=>{
-    const closes = m.closes_at ? new Date(m.closes_at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
     const r450 = resSet.has(m.id+'-450'), r250 = resSet.has(m.id+'-250');
     const resState = (r450&&r250) ? '<span class="tag-done2">✓ résultats</span>'
                    : (r450||r250) ? '<span class="tag-partial">partiel</span>'
@@ -915,17 +1205,110 @@ async function renderAdmin(v){
     </button>`;
   }).join('');
 
-  v.innerHTML = `
-    <div class="card">
-      <div class="sec-title">Saisie des résultats</div>
-      <p class="sec-sub">Clique sur une manche pour entrer le podium réel (1er/2e/3e + 5e pour le bonus) de chaque catégorie.</p>
-      ${rows}
-    </div>
+  body.innerHTML = `
+    <div class="sec-title">Saisie des résultats</div>
+    <p class="sec-sub">Clique sur une manche pour entrer le podium réel (1er/2e/3e + 5e pour le bonus).</p>
+    ${rows}
   `;
-  v.querySelectorAll('.admin-row').forEach(b=>{
+  body.querySelectorAll('.admin-row').forEach(b=>{
     b.onclick = ()=> openResultEntry(+b.dataset.manche, manches.find(m=>m.id==b.dataset.manche));
   });
 }
+
+// ====== ADMIN · PILOTES (ajouter / modifier) ======
+async function renderAdminPilotes(body){
+  body.innerHTML = `<div class="loading">Chargement…</div>`;
+  const { data: pilotes } = await sb.from('pilotes').select('*').order('categorie').order('numero');
+  const valides = (pilotes||[]).filter(p=>p.valide);
+  const proposes = (pilotes||[]).filter(p=>!p.valide);
+
+  const list = (cat)=> valides.filter(p=>p.categorie===cat).map(p=>`
+    <div class="pil-row" data-id="${p.id}">
+      <input class="pil-num" type="number" value="${p.numero??''}" data-f="numero" placeholder="#">
+      <input class="pil-nom" type="text" value="${(p.nom||'').replace(/"/g,'&quot;')}" data-f="nom" placeholder="Nom complet">
+      <button class="pil-save" data-id="${p.id}">✓</button>
+    </div>`).join('');
+
+  const proposBlock = proposes.length ? `
+    <div class="propos-zone">
+      <div class="sec-title" style="font-size:15px;color:var(--cyan)">⏳ Propositions à valider (${proposes.length})</div>
+      ${proposes.map(p=>`
+        <div class="propos-row" data-id="${p.id}">
+          <span class="propos-info"><b>#${p.numero??'?'} ${p.nom}</b><span class="cat-mini cat-${p.categorie}">${p.categorie}</span></span>
+          <span class="propos-actions">
+            <button class="propos-ok" data-id="${p.id}">Valider</button>
+            <button class="propos-no" data-id="${p.id}">Rejeter</button>
+          </span>
+        </div>`).join('')}
+    </div>` : '';
+
+  body.innerHTML = `
+    <div class="sec-title">Gestion des pilotes</div>
+    <p class="sec-sub">Valide les propositions des joueurs, modifie ou ajoute des pilotes.</p>
+    ${proposBlock}
+    <div class="pil-cat"><span class="cat-tag cat-450">450</span> ${valides.filter(p=>p.categorie==='450').length} pilotes</div>
+    <div class="pil-list">${list('450')}</div>
+    <div class="pil-cat"><span class="cat-tag cat-250">250</span> ${valides.filter(p=>p.categorie==='250').length} pilotes</div>
+    <div class="pil-list">${list('250')}</div>
+    <div class="pil-add">
+      <div class="sec-title" style="font-size:15px">Ajouter un pilote</div>
+      <div class="pil-addrow">
+        <input id="newNum" type="number" placeholder="#" class="pil-num">
+        <input id="newNom" type="text" placeholder="Nom complet" class="pil-nom">
+        <select id="newCat" class="pil-cat-sel"><option value="450">450</option><option value="250">250</option></select>
+      </div>
+      <button class="btn" id="addPilote">Ajouter ce pilote</button>
+    </div>
+    <div class="msg" id="pilmsg"></div>
+  `;
+
+  // valider / rejeter propositions
+  body.querySelectorAll('.propos-ok').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const { error } = await sb.from('pilotes').update({ valide:true }).eq('id', +btn.dataset.id);
+      if(error) return showPilMsg(error.message,'err');
+      PILOTES={'250':[],'450':[]}; renderAdminPilotes(body);
+    };
+  });
+  body.querySelectorAll('.propos-no').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const { error } = await sb.from('pilotes').delete().eq('id', +btn.dataset.id);
+      if(error) return showPilMsg(error.message,'err');
+      renderAdminPilotes(body);
+    };
+  });
+
+  body.querySelectorAll('.pil-save').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const row = btn.closest('.pil-row');
+      const id = +btn.dataset.id;
+      const numero = row.querySelector('[data-f="numero"]').value || null;
+      const nom = row.querySelector('[data-f="nom"]').value.trim();
+      if(!nom) return showPilMsg("Le nom ne peut pas être vide.", 'err');
+      const { error } = await sb.from('pilotes').update({ numero, nom }).eq('id', id);
+      if(error) return showPilMsg(error.message, 'err');
+      showPilMsg("✓ Pilote modifié.", 'ok');
+      PILOTES = { '250':[], '450':[] };
+    };
+  });
+
+  document.getElementById('addPilote').onclick = async ()=>{
+    const numero = document.getElementById('newNum').value || null;
+    const nom = document.getElementById('newNom').value.trim();
+    const categorie = document.getElementById('newCat').value;
+    if(!nom) return showPilMsg("Entre le nom du pilote.", 'err');
+    const { error } = await sb.from('pilotes').insert({ numero, nom, categorie, valide:true });
+    if(error){
+      if(error.message.includes('duplicate')||error.message.includes('unique'))
+        return showPilMsg("Ce pilote existe déjà dans cette catégorie.", 'err');
+      return showPilMsg(error.message, 'err');
+    }
+    PILOTES = { '250':[], '450':[] };
+    renderAdminPilotes(body);
+  };
+}
+
+function showPilMsg(t,type){ const m=document.getElementById('pilmsg'); if(m){ m.textContent=t; m.className='msg show '+type; } }
 
 // ----- écran de saisie d'un résultat -----
 async function openResultEntry(mancheId, manche){
