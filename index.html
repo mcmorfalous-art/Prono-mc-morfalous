@@ -305,6 +305,7 @@ header::after{
 .cat-tag{font-family:'Archivo Black',sans-serif;font-size:13px;padding:2px 9px;border-radius:6px;color:#fff;background:var(--steel)}
 .cat-450{background:var(--red)}
 .cat-250{background:var(--cyan-deep)}
+.cat-nations{background:linear-gradient(135deg,var(--red),var(--cyan-deep))}
 .cat-mini{background:var(--steel)}
 
 /* épreuves annulées */
@@ -765,14 +766,17 @@ const val = id => (document.getElementById(id)?.value || '').trim();
 let currentProfil = null;
 let currentSession = null;
 let currentChamp = 'AMA'; // championnat sélectionné (valeur interne)
-const CHAMPS = ['AMA','MXGP','Vendée'];
-const CHAMP_LABELS = { 'AMA':'MX US', 'MXGP':'MXGP', 'Vendée':'Vendée' };
+const CHAMPS = ['AMA','MXGP','Vendée','MXdN'];
+const CHAMP_LABELS = { 'AMA':'MX US', 'MXGP':'MXGP', 'Vendée':'Vendée', 'MXdN':'MX des Nations' };
 // catégories par championnat (ordre = ordre d'affichage)
 const CHAMP_CATS = {
   'AMA':    ['450','250'],
   'MXGP':   ['450','250'],
   'Vendée': ['MX1','MX2','125','Vétérans','65'],
+  'MXdN':   ['Nations'],
 };
+// championnats où l'on pronostique des pays (et non des pilotes)
+function isNations(champ){ return (champ||currentChamp) === 'MXdN'; }
 // catégories du championnat courant
 function cats(){ return CHAMP_CATS[currentChamp] || ['450','250']; }
 // catégories présentes à une manche donnée (Vendée = variable, sinon toutes)
@@ -1149,6 +1153,11 @@ function renderRegles(v){
       </div>
 
       <div class="reg-block">
+        <div class="reg-h"><span class="reg-num">🏆</span> Le Motocross des Nations</div>
+        <p>Cas spécial : pour le <b>MX des Nations</b> (Ernée, les 3 et 4 octobre 2026), on ne pronostique pas des pilotes mais le <b>podium des NATIONS</b> : quels pays finiront 1er, 2e et 3e. Tu peux aussi tenter le bonus sur la 5e nation. Le barème est le même que celui d'une manche classique (podium parfait, bonus 5e, etc.). Une nation manque dans la liste ? Tu peux la proposer, et l'organisation la validera.</p>
+      </div>
+
+      <div class="reg-block">
         <div class="reg-h"><span class="reg-num">4</span> Les fermetures</div>
         <p>Les pronos d'une manche ferment <b>la veille de la course à 23h59</b>. Un compte à rebours t'indique le temps restant. Après la fermeture, impossible de modifier : anticipe !</p>
       </div>
@@ -1490,16 +1499,21 @@ async function renderPronos(v){
   await loadPilotes();
   const { data: manches } = await sb.from('manches').select('*').eq('championnat', currentChamp).order('ordre');
 
+  // le MXdN est un événement unique : pas de prono "championnat" séparé
+  const hasChampTab = !isNations();
+  if(!hasChampTab && pronosState.tab==='champ') pronosState.tab = 'manches';
+
   // sous-onglets : par manche / championnat
   v.innerHTML = `
     <div class="subnav">
       <button class="sub-btn ${pronosState.tab==='manches'?'active':''}" id="stManches">Par manche</button>
-      <button class="sub-btn ${pronosState.tab==='champ'?'active':''}" id="stChamp">Championnat</button>
+      ${hasChampTab ? `<button class="sub-btn ${pronosState.tab==='champ'?'active':''}" id="stChamp">Championnat</button>` : ''}
     </div>
     <div id="pronoBody"></div>
   `;
   document.getElementById('stManches').onclick = ()=>{ pronosState.tab='manches'; renderPronos(v); };
-  document.getElementById('stChamp').onclick = ()=>{ pronosState.tab='champ'; renderPronos(v); };
+  const stChamp = document.getElementById('stChamp');
+  if(stChamp) stChamp.onclick = ()=>{ pronosState.tab='champ'; renderPronos(v); };
 
   if(pronosState.tab==='champ'){ return renderChampPronos(document.getElementById('pronoBody')); }
 
@@ -1617,7 +1631,7 @@ async function openMancheProno(mancheId, manche){
       ${statusBanner}
       ${closed ? '' : `<div class="countdown-banner" data-countdown="${manche.closes_at||''}">${countdownText(manche.closes_at)}</div>`}
       ${mancheCats(manche).map(c=> podiumBlock(c, byCat[c], closed)).join('')}
-      ${closed ? '' : `<button class="propose-btn" id="proposeBtn">+ Proposer un pilote absent de la liste</button>`}
+      ${closed ? '' : `<button class="propose-btn" id="proposeBtn">+ Proposer ${isNations()?'une nation absente':'un pilote absent'} de la liste</button>`}
       <div class="msg" id="pmsg"></div>
       ${closed ? '' : `<button class="btn" id="savePronos">${aDejaPronostique?'Modifier mes pronostics':'Enregistrer mes pronostics'}</button>`}
       ${(!closed && aDejaPronostique) ? `<button class="btn-del" id="delPronos">Supprimer mon pronostic</button>` : ''}
@@ -1635,14 +1649,17 @@ async function openMancheProno(mancheId, manche){
 }
 
 function podiumBlock(cat, existing, closed){
+  const nat = isNations();
   const pilotes = PILOTES[cat]||[];
   const opt = (selId)=> '<option value="">—</option>' + pilotes.map(p=>
-    `<option value="${p.id}" ${selId==p.id?'selected':''}>#${p.numero||'?'} ${p.nom}</option>`).join('');
+    `<option value="${p.id}" ${selId==p.id?'selected':''}>${nat ? p.nom : `#${p.numero||'?'} ${p.nom}`}</option>`).join('');
   const dis = closed ? 'disabled' : '';
   const e = existing||{};
+  const titre = nat ? 'Podium des nations' : 'Podium';
+  const tag = nat ? '<span class="cat-tag cat-nations">🏆 Nations</span>' : `<span class="cat-tag cat-${cat}">${cat}</span>`;
   return `
     <div class="podium" data-cat="${cat}">
-      <div class="podium-head"><span class="cat-tag cat-${cat}">${cat}</span> Podium</div>
+      <div class="podium-head">${tag} ${titre}</div>
       <div class="pod-row"><label>1<sup>er</sup></label><select ${dis} data-pos="p1">${opt(e.p1_pilote_id)}</select></div>
       <div class="pod-row"><label>2<sup>e</sup></label><select ${dis} data-pos="p2">${opt(e.p2_pilote_id)}</select></div>
       <div class="pod-row"><label>3<sup>e</sup></label><select ${dis} data-pos="p3">${opt(e.p3_pilote_id)}</select></div>
@@ -1723,15 +1740,16 @@ function showPMsg(t,type){ const m=document.getElementById('pmsg'); if(m){ m.tex
 
 // ----- proposer un pilote (joueur) -----
 function openProposeForm(){
+  const nat = isNations();
   const ov = document.createElement('div');
   ov.className = 'overlay';
   ov.innerHTML = `
     <div class="modal">
-      <div class="sec-title" style="font-size:17px">Proposer un pilote</div>
-      <p class="sec-sub">Il sera ajouté à la liste une fois validé par l'admin.</p>
+      <div class="sec-title" style="font-size:17px">Proposer ${nat?'une nation':'un pilote'}</div>
+      <p class="sec-sub">${nat?'Elle':'Il'} sera ajouté${nat?'e':''} à la liste une fois validé${nat?'e':''} par l'admin.</p>
       <div class="pil-addrow">
-        <input id="prNum" type="number" placeholder="#" class="pil-num">
-        <input id="prNom" type="text" placeholder="Nom complet" class="pil-nom">
+        ${nat?'':`<input id="prNum" type="number" placeholder="#" class="pil-num">`}
+        <input id="prNom" type="text" placeholder="${nat?'Pays (ex. Italie)':'Nom complet'}" class="pil-nom">
         <select id="prCat" class="pil-cat-sel">${cats().map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
       </div>
       <div class="msg" id="prmsg"></div>
@@ -1743,14 +1761,15 @@ function openProposeForm(){
   document.body.appendChild(ov);
   document.getElementById('prCancel').onclick = ()=> ov.remove();
   document.getElementById('prSend').onclick = async ()=>{
-    const numero = document.getElementById('prNum').value || null;
+    const numEl = document.getElementById('prNum');
+    const numero = numEl ? (numEl.value || null) : null;
     const nom = document.getElementById('prNom').value.trim();
     const categorie = document.getElementById('prCat').value;
     const m = document.getElementById('prmsg');
-    if(!nom){ m.className='msg show err'; m.textContent="Entre le nom du pilote."; return; }
+    if(!nom){ m.className='msg show err'; m.textContent=nat?"Entre le nom du pays.":"Entre le nom du pilote."; return; }
     // anti-doublon basique : vérifie si un nom proche existe déjà (validé ou non)
     const { data: existing } = await sb.from('pilotes').select('nom').eq('championnat', currentChamp).ilike('nom', nom);
-    if(existing && existing.length){ m.className='msg show err'; m.textContent="Ce pilote semble déjà exister."; return; }
+    if(existing && existing.length){ m.className='msg show err'; m.textContent=nat?"Cette nation semble déjà exister.":"Ce pilote semble déjà exister."; return; }
     const { error } = await sb.from('pilotes').insert({
       numero, nom, categorie, valide:false, propose_par: currentSession.user.id, championnat: currentChamp
     });
@@ -1940,14 +1959,15 @@ async function renderAdminResultats(body){
 // ====== ADMIN · PILOTES (ajouter / modifier) ======
 async function renderAdminPilotes(body){
   body.innerHTML = `<div class="loading">Chargement…</div>`;
+  const nat = isNations();
   const { data: pilotes } = await sb.from('pilotes').select('*').eq('championnat', currentChamp).order('categorie').order('numero');
   const valides = (pilotes||[]).filter(p=>p.valide);
   const proposes = (pilotes||[]).filter(p=>!p.valide);
 
   const list = (cat)=> valides.filter(p=>p.categorie===cat).map(p=>`
     <div class="pil-row" data-id="${p.id}">
-      <input class="pil-num" type="number" value="${p.numero??''}" data-f="numero" placeholder="#">
-      <input class="pil-nom" type="text" value="${(p.nom||'').replace(/"/g,'&quot;')}" data-f="nom" placeholder="Nom complet">
+      ${nat?'':`<input class="pil-num" type="number" value="${p.numero??''}" data-f="numero" placeholder="#">`}
+      <input class="pil-nom" type="text" value="${(p.nom||'').replace(/"/g,'&quot;')}" data-f="nom" placeholder="${nat?'Pays':'Nom complet'}">
       <button class="pil-save" data-id="${p.id}">✓</button>
     </div>`).join('');
 
@@ -1956,7 +1976,7 @@ async function renderAdminPilotes(body){
       <div class="sec-title" style="font-size:15px;color:var(--cyan)">⏳ Propositions à valider (${proposes.length})</div>
       ${proposes.map(p=>`
         <div class="propos-row" data-id="${p.id}">
-          <span class="propos-info"><b>#${p.numero??'?'} ${p.nom}</b><span class="cat-mini cat-${p.categorie}">${p.categorie}</span></span>
+          <span class="propos-info"><b>${nat?'':`#${p.numero??'?'} `}${p.nom}</b><span class="cat-mini cat-${p.categorie}">${p.categorie}</span></span>
           <span class="propos-actions">
             <button class="propos-ok" data-id="${p.id}">Valider</button>
             <button class="propos-no" data-id="${p.id}">Rejeter</button>
@@ -1965,21 +1985,21 @@ async function renderAdminPilotes(body){
     </div>` : '';
 
   body.innerHTML = `
-    <div class="sec-title">Gestion des pilotes</div>
-    <p class="sec-sub">Valide les propositions des joueurs, modifie ou ajoute des pilotes.</p>
+    <div class="sec-title">Gestion des ${nat?'nations':'pilotes'}</div>
+    <p class="sec-sub">Valide les propositions des joueurs, modifie ou ajoute ${nat?'des pays':'des pilotes'}.</p>
     ${proposBlock}
     ${cats().map(c=>`
-      <div class="pil-cat"><span class="cat-tag cat-${c}">${c}</span> ${valides.filter(p=>p.categorie===c).length} pilotes</div>
+      <div class="pil-cat"><span class="cat-tag ${nat?'cat-nations':'cat-'+c}">${nat?'🏆 Nations':c}</span> ${valides.filter(p=>p.categorie===c).length} ${nat?'pays':'pilotes'}</div>
       <div class="pil-list">${list(c)}</div>
     `).join('')}
     <div class="pil-add">
-      <div class="sec-title" style="font-size:15px">Ajouter un pilote</div>
+      <div class="sec-title" style="font-size:15px">Ajouter ${nat?'un pays':'un pilote'}</div>
       <div class="pil-addrow">
-        <input id="newNum" type="number" placeholder="#" class="pil-num">
-        <input id="newNom" type="text" placeholder="Nom complet" class="pil-nom">
+        ${nat?'':`<input id="newNum" type="number" placeholder="#" class="pil-num">`}
+        <input id="newNom" type="text" placeholder="${nat?'Pays (ex. Italie)':'Nom complet'}" class="pil-nom">
         <select id="newCat" class="pil-cat-sel">${cats().map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
       </div>
-      <button class="btn" id="addPilote">Ajouter ce pilote</button>
+      <button class="btn" id="addPilote">Ajouter ${nat?'ce pays':'ce pilote'}</button>
     </div>
     <div class="msg" id="pilmsg"></div>
   `;
@@ -2004,25 +2024,27 @@ async function renderAdminPilotes(body){
     btn.onclick = async ()=>{
       const row = btn.closest('.pil-row');
       const id = +btn.dataset.id;
-      const numero = row.querySelector('[data-f="numero"]').value || null;
+      const numEl = row.querySelector('[data-f="numero"]');
+      const numero = numEl ? (numEl.value || null) : null;
       const nom = row.querySelector('[data-f="nom"]').value.trim();
       if(!nom) return showPilMsg("Le nom ne peut pas être vide.", 'err');
       const { error } = await sb.from('pilotes').update({ numero, nom }).eq('id', id);
       if(error) return showPilMsg(error.message, 'err');
-      showPilMsg("✓ Pilote modifié.", 'ok');
+      showPilMsg(nat?"✓ Nation modifiée.":"✓ Pilote modifié.", 'ok');
       PILOTES = {};
     };
   });
 
   document.getElementById('addPilote').onclick = async ()=>{
-    const numero = document.getElementById('newNum').value || null;
+    const numEl = document.getElementById('newNum');
+    const numero = numEl ? (numEl.value || null) : null;
     const nom = document.getElementById('newNom').value.trim();
     const categorie = document.getElementById('newCat').value;
-    if(!nom) return showPilMsg("Entre le nom du pilote.", 'err');
+    if(!nom) return showPilMsg(nat?"Entre le nom du pays.":"Entre le nom du pilote.", 'err');
     const { error } = await sb.from('pilotes').insert({ numero, nom, categorie, valide:true, championnat: currentChamp });
     if(error){
       if(error.message.includes('duplicate')||error.message.includes('unique'))
-        return showPilMsg("Ce pilote existe déjà dans cette catégorie.", 'err');
+        return showPilMsg(nat?"Ce pays existe déjà.":"Ce pilote existe déjà dans cette catégorie.", 'err');
       return showPilMsg(error.message, 'err');
     }
     PILOTES = {};
@@ -2056,13 +2078,15 @@ async function openResultEntry(mancheId, manche){
 }
 
 function resultBlock(cat, existing){
+  const nat = isNations();
   const pilotes = PILOTES[cat]||[];
   const e = existing||{};
   const opt = (selId)=> '<option value="">—</option>' + pilotes.map(p=>
-    `<option value="${p.id}" ${selId==p.id?'selected':''}>#${p.numero||'?'} ${p.nom}</option>`).join('');
+    `<option value="${p.id}" ${selId==p.id?'selected':''}>${nat ? p.nom : `#${p.numero||'?'} ${p.nom}`}</option>`).join('');
+  const tag = nat ? '<span class="cat-tag cat-nations">🏆 Nations</span>' : `<span class="cat-tag cat-${cat}">${cat}</span>`;
   return `
     <div class="podium result" data-cat="${cat}">
-      <div class="podium-head"><span class="cat-tag cat-${cat}">${cat}</span> Podium réel</div>
+      <div class="podium-head">${tag} Podium réel</div>
       <div class="pod-row"><label>1<sup>er</sup></label><select data-pos="p1">${opt(e.p1_pilote_id)}</select></div>
       <div class="pod-row"><label>2<sup>e</sup></label><select data-pos="p2">${opt(e.p2_pilote_id)}</select></div>
       <div class="pod-row"><label>3<sup>e</sup></label><select data-pos="p3">${opt(e.p3_pilote_id)}</select></div>
