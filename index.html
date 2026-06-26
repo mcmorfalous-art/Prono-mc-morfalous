@@ -424,23 +424,24 @@ header::after{
   margin:8px 0 24px;padding:22px 10px 0;position:relative;
   background:radial-gradient(120% 80% at 50% 100%, rgba(30,167,225,.10), transparent 70%);
   border-radius:14px}
-.pod-col{flex:1;max-width:132px;display:flex;flex-direction:column;align-items:center;text-align:center;
-  opacity:0;transform:translateY(18px);animation:podRise .55s cubic-bezier(.2,.9,.3,1.25) forwards}
-.pod-col.p2{animation-delay:.05s}
-.pod-col.p1{animation-delay:.20s}
-.pod-col.p3{animation-delay:.35s}
-@keyframes podRise{to{opacity:1;transform:none}}
+.pod-col{flex:1;max-width:132px;display:flex;flex-direction:column;align-items:center;text-align:center}
+/* le bloc nom+avatar+points TOMBE d'en haut avec un rebond */
+.pod-drop{display:flex;flex-direction:column;align-items:center;
+  opacity:0;transform:translateY(-120px);animation:podFall .6s cubic-bezier(.34,1.56,.64,1) forwards}
+.pod-col.p1 .pod-drop{animation-delay:.15s}
+.pod-col.p2 .pod-drop{animation-delay:.45s}
+.pod-col.p3 .pod-drop{animation-delay:.75s}
+@keyframes podFall{
+  0%{opacity:0;transform:translateY(-120px)}
+  60%{opacity:1;transform:translateY(8px)}
+  80%{transform:translateY(-4px)}
+  100%{opacity:1;transform:translateY(0)}}
 .pod-ava{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;
   font-family:'Archivo Black',sans-serif;font-size:23px;color:#0a1622;margin-bottom:6px;
-  border:3px solid var(--night);position:relative;z-index:2;
-  animation:podPop .4s cubic-bezier(.2,.9,.3,1.5) both}
-.pod-col.p2 .pod-ava{animation-delay:.25s}
-.pod-col.p1 .pod-ava{animation-delay:.40s}
-.pod-col.p3 .pod-ava{animation-delay:.55s}
-@keyframes podPop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+  border:3px solid var(--night);position:relative;z-index:2}
 .pod-col.p1 .pod-ava{background:linear-gradient(180deg,#ffe27a,#d9a400);width:68px;height:68px;font-size:28px;
   box-shadow:0 0 0 3px rgba(255,217,84,.35),0 0 26px rgba(255,217,84,.6);
-  animation:podPop .4s cubic-bezier(.2,.9,.3,1.5) both, podGlow 2.2s ease-in-out 1s infinite}
+  animation:podGlow 2.2s ease-in-out 1s infinite}
 @keyframes podGlow{0%,100%{box-shadow:0 0 0 3px rgba(255,217,84,.35),0 0 22px rgba(255,217,84,.45)}
   50%{box-shadow:0 0 0 4px rgba(255,217,84,.5),0 0 34px rgba(255,217,84,.8)}}
 .pod-col.p2 .pod-ava{background:linear-gradient(180deg,#eef3f8,#9aa9b6)}
@@ -452,12 +453,7 @@ header::after{
 .pod-bar{width:100%;border-radius:9px 9px 0 0;position:relative;overflow:hidden;
   border:1px solid var(--line2);border-bottom:none;
   display:flex;align-items:flex-start;justify-content:center;
-  padding-top:10px;font-family:'Archivo Black',sans-serif;font-size:22px;
-  transform-origin:bottom;animation:podGrow .5s cubic-bezier(.2,.8,.3,1) both}
-.pod-col.p2 .pod-bar{animation-delay:.1s}
-.pod-col.p1 .pod-bar{animation-delay:.25s}
-.pod-col.p3 .pod-bar{animation-delay:.4s}
-@keyframes podGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+  padding-top:10px;font-family:'Archivo Black',sans-serif;font-size:22px}
 .pod-bar::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;
   background:linear-gradient(100deg,transparent,rgba(255,255,255,.25),transparent);
   transform:skewX(-18deg)}
@@ -539,6 +535,19 @@ header::after{
   font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.06em;
   font-weight:700;font-size:13px}
 .propose-btn:hover{border-color:var(--cyan);background:rgba(30,167,225,.06)}
+
+/* ===== PRONOS DU CLUB (manche fermée) ===== */
+.club-pronos{margin-top:18px;padding-top:16px;border-top:1px solid var(--line2)}
+.cp-head{font-family:'Archivo Black',sans-serif;font-size:15px;color:#fff;margin-bottom:4px}
+.cp-sub{font-size:13px;color:var(--bone-dim);margin-bottom:14px}
+.cp-empty{font-size:13px;color:var(--bone-dim);font-style:italic;padding:8px 0}
+.cp-cat{margin:14px 0 8px}
+.cp-row{display:flex;align-items:baseline;gap:10px;padding:7px 10px;border-radius:9px;
+  background:var(--night2);margin-bottom:6px}
+.cp-user{font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;
+  font-size:14px;color:var(--cyan);min-width:78px;flex-shrink:0}
+.cp-pod{font-size:13px;color:var(--bone);line-height:1.4}
+.cp-b5{color:#ffd954}
 
 /* overlay / modale */
 .overlay{position:fixed;inset:0;z-index:60;background:rgba(6,14,22,.85);backdrop-filter:blur(4px);
@@ -1409,10 +1418,12 @@ function podiumTop3(ranked){
     if(!r) return `<div class="pod-col p${place}"></div>`;
     const crown = place===1 ? '<div class="pod-crown">👑</div>' : '<div class="pod-crown"></div>';
     return `<div class="pod-col p${place}">
-      ${crown}
-      <div class="pod-ava">${initial(r.pseudo)}</div>
-      <div class="pod-name">${r.pseudo}</div>
-      <div class="pod-pts">${r.total} pts</div>
+      <div class="pod-drop">
+        ${crown}
+        <div class="pod-ava">${initial(r.pseudo)}</div>
+        <div class="pod-name">${r.pseudo}</div>
+        <div class="pod-pts">${r.total} pts</div>
+      </div>
       <div class="pod-bar">${place}</div>
     </div>`;
   };
@@ -1714,9 +1725,13 @@ async function openMancheProno(mancheId, manche){
       <div class="msg" id="pmsg"></div>
       ${closed ? '' : `<button class="btn" id="savePronos">${aDejaPronostique?'Modifier mes pronostics':'Enregistrer mes pronostics'}</button>`}
       ${(!closed && aDejaPronostique) ? `<button class="btn-del" id="delPronos">Supprimer mon pronostic</button>` : ''}
+      ${closed ? `<div id="clubPronos" class="club-pronos"><div class="loading">Chargement des pronos du club…</div></div>` : ''}
     </div>
   `;
   document.getElementById('back').onclick = ()=>{ switchView('pronos'); };
+  if(closed){
+    renderClubPronos(mancheId, manche);
+  }
   if(!closed){
     mancheCats(manche).forEach(c=>setupPodium(c));
     document.getElementById('savePronos').onclick = ()=>saveMancheProno(mancheId, manche);
@@ -1725,6 +1740,49 @@ async function openMancheProno(mancheId, manche){
     if(delBtn) delBtn.onclick = ()=>deleteMancheProno(mancheId, manche);
     startCountdowns();
   }
+}
+
+// Affiche les pronos de tous les joueurs pour une manche fermée
+async function renderClubPronos(mancheId, manche){
+  const box = document.getElementById('clubPronos');
+  if(!box) return;
+  await loadPilotes();
+  const nat = isNations();
+  const [pronosR, profilsR] = await Promise.all([
+    sb.from('pronos').select('*').eq('manche_id', mancheId),
+    sb.from('profils').select('id,pseudo'),
+  ]);
+  const pronos = pronosR.data||[];
+  if(!pronos.length){
+    box.innerHTML = `<div class="cp-head">👥 Les pronos du club</div>
+      <div class="cp-empty">Personne n'avait pronostiqué cette épreuve.</div>`;
+    return;
+  }
+  const pseudo = {}; (profilsR.data||[]).forEach(p=> pseudo[p.id]=p.pseudo||'?');
+  const pidName = {}; allPilotes().forEach(p=> pidName[p.id]= nat ? p.nom : p.nom);
+
+  // regrouper par catégorie puis par joueur
+  const cats = mancheCats(manche);
+  let html = `<div class="cp-head">👥 Les pronos du club</div>
+    <p class="cp-sub">Maintenant que c'est fermé, voici ce que tout le monde a misé 🍿</p>`;
+  cats.forEach(c=>{
+    const lignes = pronos.filter(p=> p.categorie===c);
+    if(!lignes.length) return;
+    const tag = nat ? '<span class="cat-tag cat-nations">🏆 Nations</span>' : `<span class="cat-tag cat-${c}">${c}</span>`;
+    html += `<div class="cp-cat">${tag}</div>`;
+    lignes.sort((a,b)=> (pseudo[a.user_id]||'').localeCompare(pseudo[b.user_id]||''));
+    lignes.forEach(p=>{
+      const l1 = pidName[p.p1_pilote_id]||'?';
+      const l2 = pidName[p.p2_pilote_id]||'?';
+      const l3 = pidName[p.p3_pilote_id]||'?';
+      const l5 = p.joue_bonus5 ? (pidName[p.p5_pilote_id]||'?') : null;
+      html += `<div class="cp-row">
+        <div class="cp-user">${pseudo[p.user_id]||'?'}</div>
+        <div class="cp-pod">🥇 ${l1} · 🥈 ${l2} · 🥉 ${l3}${l5?` · <span class="cp-b5">5e ${l5}</span>`:''}</div>
+      </div>`;
+    });
+  });
+  box.innerHTML = html;
 }
 
 function podiumBlock(cat, existing, closed){
