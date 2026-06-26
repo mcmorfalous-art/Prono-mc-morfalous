@@ -814,7 +814,7 @@ function loginForm(){
     </div>
     <button class="btn" id="btnLogin">Se connecter</button>
     <button class="forgot" id="forgot">Mot de passe oublié ?</button>
-    <div class="confirm-hint">Tu viens de t'inscrire ? Pense à <b>confirmer ton email</b> via le lien reçu avant de te connecter.</div>
+    <div class="confirm-hint">Tu viens de t'inscrire ? Pense à <b>confirmer ton email</b> via le lien reçu (mail de « Supabase », en anglais, à vérifier dans tes spams) avant de te connecter.</div>
   `;
 }
 
@@ -841,7 +841,11 @@ function signupForm(){
       <input id="su_code" type="text" placeholder="Code réservé aux licenciés">
       <div class="hint">Ce code t'est communiqué par le club. Sans lui, pas d'inscription.</div>
     </div>
-    <div class="confirm-note">📩 <b>Important :</b> après l'inscription, tu recevras un email de confirmation. <b>Clique sur le lien dans cet email</b> (pense à vérifier tes spams) avant de pouvoir te connecter.</div>
+    <div class="confirm-note">📩 <b>Comment ça marche :</b><br>
+      1. Après l'inscription, tu reçois un email de <b>« Supabase »</b>, en anglais (objet « Confirm your email address ») — c'est normal ! Pense à vérifier tes <b>spams</b>.<br>
+      2. Clique sur le lien <b>« Confirm email address »</b>.<br>
+      3. Une page peut afficher une erreur (« 404 ») : <b>pas d'inquiétude, ton compte est bien activé !</b><br>
+      4. <b>Reviens sur l'appli</b> et connecte-toi normalement. 🐺</div>
     <button class="btn" id="btnSignup">Créer mon compte</button>
   `;
 }
@@ -877,9 +881,9 @@ async function doSignup(){
   if(data.session){
     boot(); // connecté direct (si confirmation désactivée)
   } else {
-    showMsg("Compte créé ! Vérifie tes emails (et tes spams) pour confirmer ton adresse, puis connecte-toi.", 'ok');
+    showMsg("Compte créé ! Va confirmer ton email (mail de « Supabase », vérifie tes spams). Si la page affiche une erreur après le clic, c'est normal : reviens ici et connecte-toi.", 'ok');
     mode='login';
-    setTimeout(renderAuth, 3500);
+    setTimeout(renderAuth, 7000);
   }
 }
 
