@@ -455,6 +455,8 @@ header::after{
 .reg-prizes{padding:14px;background:rgba(255,217,84,.06);border:1px solid rgba(255,217,84,.2);border-radius:11px}
 .reg-foot{text-align:center;color:var(--bone-dim);font-size:13px;margin-top:20px;
   padding-top:16px;border-top:1px solid var(--line2)}
+.reg-contact a{color:var(--cyan);font-weight:600;text-decoration:none}
+.reg-contact a:hover{text-decoration:underline}
 
 /* gestion pilotes */
 .pil-cat{display:flex;align-items:center;gap:8px;margin:16px 0 8px;
@@ -1138,7 +1140,12 @@ function renderRegles(v){
         <p>En fin de saison, les <b>3 premiers du classement général</b> remportent des lots offerts par le club. De quoi ajouter un peu de piment à la bagarre !</p>
       </div>
 
-      <p class="reg-foot">Des questions ? Demande à l'organisation du club. Bonne chance et que le meilleur pronostiqueur gagne ! 🏁</p>
+      <div class="reg-block reg-contact">
+        <div class="reg-h"><span class="reg-num">✉️</span> Nous contacter</div>
+        <p>Une question, un souci, une suggestion ? Écris-nous à <a href="mailto:mcmorfalous@gmail.com">mcmorfalous@gmail.com</a> et l'organisation du club te répondra.</p>
+      </div>
+
+      <p class="reg-foot">Bonne chance et que le meilleur pronostiqueur gagne ! 🏁</p>
     </div>
   `;
 }
