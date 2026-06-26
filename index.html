@@ -1464,8 +1464,8 @@ async function renderClassement(v){
 }
 
 function podiumTop3(ranked){
-  // ne garder que ceux qui ont des points
-  const top = ranked.filter(r=> r.total>0).slice(0,3);
+  // top 3 du classement (affiché même si tout le monde est à 0 point)
+  const top = ranked.slice(0,3);
   if(top.length===0) return '';
   const initial = (s)=> (s||'?').trim().charAt(0).toUpperCase() || '?';
   const col = (r, place)=>{
