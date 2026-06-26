@@ -1412,9 +1412,11 @@ async function renderClassement(v){
   const drops = v.querySelectorAll('.pod-drop');
   if(drops.length){
     drops.forEach(d=>d.classList.remove('play'));
+    // double rAF + filet setTimeout pour fiabilité sur mobile
     requestAnimationFrame(()=>{ requestAnimationFrame(()=>{
       drops.forEach(d=>d.classList.add('play'));
     }); });
+    setTimeout(()=>{ drops.forEach(d=>{ if(!d.classList.contains('play')) d.classList.add('play'); }); }, 60);
   }
 }
 
