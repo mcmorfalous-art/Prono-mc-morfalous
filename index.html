@@ -426,11 +426,12 @@ header::after{
   border-radius:14px}
 .pod-col{flex:1;max-width:132px;display:flex;flex-direction:column;align-items:center;text-align:center}
 /* le bloc nom+avatar+points TOMBE d'en haut avec un rebond */
-.pod-drop{display:flex;flex-direction:column;align-items:center;
-  opacity:0;transform:translateY(-120px);animation:podFall .6s cubic-bezier(.34,1.56,.64,1) forwards}
-.pod-col.p1 .pod-drop{animation-delay:.15s}
-.pod-col.p2 .pod-drop{animation-delay:.45s}
-.pod-col.p3 .pod-drop{animation-delay:.75s}
+.pod-drop{display:flex;flex-direction:column;align-items:center}
+/* l'animation ne joue que quand la classe .play est ajoutée (rejouable, et jamais invisible sinon) */
+.pod-drop.play{opacity:0;transform:translateY(-120px);animation:podFall .6s cubic-bezier(.34,1.56,.64,1) forwards}
+.pod-col.p1 .pod-drop.play{animation-delay:.05s}
+.pod-col.p2 .pod-drop.play{animation-delay:.30s}
+.pod-col.p3 .pod-drop.play{animation-delay:.55s}
 @keyframes podFall{
   0%{opacity:0;transform:translateY(-120px)}
   60%{opacity:1;transform:translateY(8px)}
@@ -1407,6 +1408,14 @@ async function renderClassement(v){
       }
     };
   });
+  // déclenche l'animation de chute du podium (rejouable à chaque affichage)
+  const drops = v.querySelectorAll('.pod-drop');
+  if(drops.length){
+    drops.forEach(d=>d.classList.remove('play'));
+    requestAnimationFrame(()=>{ requestAnimationFrame(()=>{
+      drops.forEach(d=>d.classList.add('play'));
+    }); });
+  }
 }
 
 function podiumTop3(ranked){
