@@ -1698,6 +1698,8 @@ async function renderStats(v){
   const mancheIdsFermees = new Set(manchesArr.filter(m=> m.closes_at && new Date(m.closes_at).getTime() <= now).map(m=>m.id));
   // pronos visibles dans les stats = ceux des manches fermées seulement
   const pronos = (pronosR.data||[]).filter(pr=> mancheIdsFermees.has(pr.manche_id));
+  // pour la TENDANCE "plus pronostiqués", on compte toutes les manches (même ouvertes)
+  const pronosTous = (pronosR.data||[]).filter(pr=> mancheIds.has(pr.manche_id));
   const resultats = (resultatsR.data||[]).filter(r=> mancheIds.has(r.manche_id));
   // prono championnat : visible seulement si la deadline du championnat est passée
   const champDeadlinePassee = (CHAMP_CLOSES_AT && CHAMP_CLOSES_LOADED_FOR===currentChamp)
@@ -1709,11 +1711,12 @@ async function renderStats(v){
   const nameOf = id => pidInfo[id] ? `${pidInfo[id].nom}${pidInfo[id].numero?` #${pidInfo[id].numero}`:''}` : '?';
   const catOf  = id => pidInfo[id] ? pidInfo[id].categorie : null;
 
-  // 1) PILOTES LES PLUS PRONOSTIQUÉS (toutes positions, manches + champ)
+  // 1) PILOTES LES PLUS PRONOSTIQUÉS (tendance — toutes manches, même ouvertes)
   const popCount = {}; // id -> nb de fois cité dans un podium
   const addPos = (id)=>{ if(id) popCount[id]=(popCount[id]||0)+1; };
-  pronos.forEach(pr=>{ addPos(pr.p1_pilote_id); addPos(pr.p2_pilote_id); addPos(pr.p3_pilote_id); if(pr.joue_bonus5) addPos(pr.p5_pilote_id); });
-  pchamp.forEach(pc=>{ addPos(pc.p1_pilote_id); addPos(pc.p2_pilote_id); addPos(pc.p3_pilote_id); if(pc.joue_bonus5) addPos(pc.p5_pilote_id); });
+  const pchampTous = pchampR.data||[];
+  pronosTous.forEach(pr=>{ addPos(pr.p1_pilote_id); addPos(pr.p2_pilote_id); addPos(pr.p3_pilote_id); if(pr.joue_bonus5) addPos(pr.p5_pilote_id); });
+  pchampTous.forEach(pc=>{ addPos(pc.p1_pilote_id); addPos(pc.p2_pilote_id); addPos(pc.p3_pilote_id); if(pc.joue_bonus5) addPos(pc.p5_pilote_id); });
   const popList = Object.entries(popCount).sort((a,b)=>b[1]-a[1]).slice(0,10);
 
   // 2) PALMARÈS DANS LES RÉSULTATS (victoires = p1, podiums = p1/p2/p3)
@@ -1746,7 +1749,7 @@ async function renderStats(v){
     .map(([id,p])=>({id, pts:Math.round(p)}))
     .sort((a,b)=>b.pts-a.pts).slice(0,10);
 
-  const hasData = pronos.length>0 || resultats.length>0;
+  const hasData = pronosTous.length>0 || resultats.length>0;
 
   // mélange l'ordre pour ne PAS révéler de classement précis (juste une tendance)
   const popShuffled = popList.slice().sort(()=> Math.random()-0.5);
