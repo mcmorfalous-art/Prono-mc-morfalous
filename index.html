@@ -562,7 +562,7 @@ const __splashStart = Date.now();
 function hideSplash(){
   const sp = document.getElementById('splash');
   if(!sp) return;
-  const wait = Math.max(0, 900 - (Date.now() - __splashStart)); // durée mini ~0.9s
+  const wait = Math.max(0, 1800 - (Date.now() - __splashStart)); // durée mini ~1.8s
   setTimeout(()=>{ sp.classList.add('hide'); setTimeout(()=>sp.remove(), 500); }, wait);
 }
 
