@@ -294,6 +294,7 @@ header::after{
 .stat-desc{font-size:12.5px;color:var(--bone-dim);margin-bottom:12px;line-height:1.4}
 .stat-row{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line)}
 .stat-rk{font-family:'Archivo Black',sans-serif;font-size:13px;color:var(--steel);min-width:22px}
+.stat-dot{color:var(--cyan);min-width:22px;text-align:center;font-size:16px}
 .stat-name{flex:1;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:15px;
   display:flex;align-items:center;gap:7px;color:var(--bone)}
 .stat-val{font-family:'Archivo Black',sans-serif;font-size:14px;color:var(--cyan);
@@ -1541,17 +1542,27 @@ function rankRow(r, i, cat, myCats){
 async function renderStats(v){
   v.innerHTML = `<div class="card"><div class="loading">Calcul des stats…</div></div>`;
   await loadPilotes();
+  await loadConfig();
 
   const [pronosR, resultatsR, pchampR, manchesR] = await Promise.all([
     sb.from('pronos').select('*'),
     sb.from('resultats').select('*'),
     sb.from('pronos_championnat').select('*').eq('championnat', currentChamp),
-    sb.from('manches').select('id,annulee').eq('championnat', currentChamp),
+    sb.from('manches').select('id,annulee,closes_at').eq('championnat', currentChamp),
   ]);
-  const mancheIds = new Set((manchesR.data||[]).filter(m=>!m.annulee).map(m=>m.id));
-  const pronos = (pronosR.data||[]).filter(pr=> mancheIds.has(pr.manche_id));
+  const now = Date.now();
+  const manchesArr = (manchesR.data||[]).filter(m=>!m.annulee);
+  // toutes les manches non annulées (pour les résultats/classement)
+  const mancheIds = new Set(manchesArr.map(m=>m.id));
+  // UNIQUEMENT les manches déjà fermées (pour ne pas dévoiler les pronos en cours)
+  const mancheIdsFermees = new Set(manchesArr.filter(m=> m.closes_at && new Date(m.closes_at).getTime() <= now).map(m=>m.id));
+  // pronos visibles dans les stats = ceux des manches fermées seulement
+  const pronos = (pronosR.data||[]).filter(pr=> mancheIdsFermees.has(pr.manche_id));
   const resultats = (resultatsR.data||[]).filter(r=> mancheIds.has(r.manche_id));
-  const pchamp = pchampR.data||[];
+  // prono championnat : visible seulement si la deadline du championnat est passée
+  const champDeadlinePassee = (CHAMP_CLOSES_AT && CHAMP_CLOSES_LOADED_FOR===currentChamp)
+    ? (new Date(CHAMP_CLOSES_AT).getTime() <= now) : false;
+  const pchamp = champDeadlinePassee ? (pchampR.data||[]) : [];
 
   const pidInfo = {};
   allPilotes().forEach(p=> pidInfo[p.id] = p);
@@ -1597,8 +1608,10 @@ async function renderStats(v){
 
   const hasData = pronos.length>0 || resultats.length>0;
 
-  const popBlock = popList.length ? popList.map(([id,n],i)=>`
-    <div class="stat-row"><span class="stat-rk">${i+1}</span>
+  // mélange l'ordre pour ne PAS révéler de classement précis (juste une tendance)
+  const popShuffled = popList.slice().sort(()=> Math.random()-0.5);
+  const popBlock = popShuffled.length ? popShuffled.map(([id,n])=>`
+    <div class="stat-row"><span class="stat-dot">•</span>
       <span class="stat-name">${nameOf(id)} ${catOf(id)?`<span class="cat-mini cat-${catOf(id)}">${catOf(id)}</span>`:''}</span>
       <span class="stat-val">${n}×</span></div>`).join('')
     : '<div class="det-empty">Pas encore de pronostics enregistrés.</div>';
@@ -1621,7 +1634,7 @@ async function renderStats(v){
       ${!hasData ? `<div class="placeholder">${isNations()?'Les stats des joueurs apparaîtront dès les premiers pronostics et résultats. En attendant, consulte le palmarès des nations ci-dessus 👆':'Les stats apparaîtront dès les premiers pronostics et résultats.'}</div>` : `
       <div class="stat-sec">
         <div class="stat-title">⭐ Les plus pronostiqués</div>
-        <p class="stat-desc">Les pilotes sur qui le club mise le plus.</p>
+        <p class="stat-desc">Les pilotes que le club cite souvent (tendance, sans ordre précis).</p>
         ${popBlock}
       </div>
       <div class="stat-sec">
