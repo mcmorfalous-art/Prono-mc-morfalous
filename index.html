@@ -267,6 +267,10 @@ header::after{
   font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.06em;
   font-weight:700;font-size:13px}
 .btn-del:hover{background:rgba(226,59,46,.15)}
+.btn-del-account{width:100%;margin-top:16px;padding:9px;background:none;border:none;
+  color:var(--bone-dim);font-size:12px;cursor:pointer;text-decoration:underline;
+  font-family:'Barlow',sans-serif}
+.btn-del-account:hover{color:#ff8a80}
 
 /* vue mes pronos */
 .mp-manche{background:var(--night);border:1px solid var(--line2);border-radius:12px;
@@ -1082,9 +1086,11 @@ function openProfil(profil){
         <button class="btn-ghost" id="pfCancel">Fermer</button>
         <button class="btn" id="pfSave" style="margin-top:0">Enregistrer</button>
       </div>
+      <button class="btn-del-account" id="pfDelete">Supprimer mon compte</button>
     </div>`;
   document.body.appendChild(ov);
   document.getElementById('pfCancel').onclick = ()=> ov.remove();
+  document.getElementById('pfDelete').onclick = ()=> confirmDeleteAccount(ov);
   document.getElementById('pfSave').onclick = async ()=>{
     const nouveau = document.getElementById('pfPseudo').value.trim();
     const m = document.getElementById('pfMsg');
@@ -1099,6 +1105,48 @@ function openProfil(profil){
     m.className='msg show ok'; m.textContent="✓ Pseudo mis à jour !";
     currentProfil = currentProfil || {}; currentProfil.pseudo = nouveau;
     setTimeout(()=>{ ov.remove(); renderHome(currentSession); }, 1000);
+  };
+}
+
+// suppression du compte : efface les données du joueur puis déconnecte
+function confirmDeleteAccount(profilOverlay){
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.innerHTML = `
+    <div class="modal">
+      <div class="sec-title" style="font-size:18px;color:var(--red)">⚠️ Supprimer mon compte</div>
+      <p class="sec-sub">Cette action est <b>définitive</b>. Tes pronostics, ton pseudo et tes statistiques seront effacés et tu seras déconnecté. Pour confirmer, écris <b>SUPPRIMER</b> ci-dessous.</p>
+      <div class="field">
+        <input id="delConfirm" type="text" placeholder="SUPPRIMER" autocomplete="off">
+      </div>
+      <div class="msg" id="delMsg"></div>
+      <div class="modal-actions">
+        <button class="btn-ghost" id="delCancel">Annuler</button>
+        <button class="btn-del" id="delGo" style="margin-top:0">Supprimer définitivement</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  document.getElementById('delCancel').onclick = ()=> ov.remove();
+  document.getElementById('delGo').onclick = async ()=>{
+    const txt = (document.getElementById('delConfirm').value||'').trim().toUpperCase();
+    const m = document.getElementById('delMsg');
+    if(txt !== 'SUPPRIMER'){ m.className='msg show err'; m.textContent="Écris SUPPRIMER en majuscules pour confirmer."; return; }
+    m.className='msg show ok'; m.textContent="Suppression en cours…";
+    const uid = currentSession.user.id;
+    try{
+      // effacer toutes les données rattachées au joueur
+      await sb.from('pronos').delete().eq('user_id', uid);
+      await sb.from('pronos_championnat').delete().eq('user_id', uid);
+      await sb.from('profils').delete().eq('id', uid);
+    }catch(e){ /* on continue quand même vers la déconnexion */ }
+    await sb.auth.signOut();
+    ov.remove();
+    if(profilOverlay) profilOverlay.remove();
+    // retour à l'écran de connexion avec un petit message
+    mode = 'login';
+    renderAuth();
+    const msg = document.getElementById('msg');
+    if(msg){ msg.className='msg show ok'; msg.textContent="Ton compte et tes données ont été supprimés. À bientôt 🐺"; }
   };
 }
 
@@ -1493,11 +1541,11 @@ async function renderClassement(v){
       ${!hasAnyResult ? '<div class="placeholder">Aucun résultat saisi pour le moment. Le classement apparaîtra dès le premier résultat de manche enregistré.</div>'
       : ranked.length===0 ? '<div class="placeholder">Aucun joueur inscrit pour le moment.</div>'
       : `${podiumTop3(ranked)}
-         <div class="rank-hint">Touche un joueur pour voir le détail de ses points</div>
+         ${ranked.length>3 ? `<div class="rank-hint">Touche un joueur pour voir le détail de ses points</div>
          <table class="rank-table">
           <thead><tr><th>#</th><th>Pilote</th>${catHeaders}<th>Pts</th></tr></thead>
-          <tbody>${ranked.map((r,i)=>rankRow(r,i,cat,myCats)).join('')}</tbody>
-        </table>`}
+          <tbody>${ranked.slice(3).map((r,i)=>rankRow(r,i+3,cat,myCats)).join('')}</tbody>
+        </table>` : ''}`}
     </div>
   `;
   v.querySelectorAll('.sub-btn').forEach(b=>{
