@@ -1398,9 +1398,17 @@ function renderRegles(v){
         <p>Une question, un souci, une suggestion ? Écris-nous à <a href="mailto:mcmorfalous@gmail.com">mcmorfalous@gmail.com</a> et l'organisation du club te répondra.</p>
       </div>
 
+      <div class="reg-block">
+        <div class="reg-h"><span class="reg-num">👤</span> Mon compte</div>
+        <p>Tu peux supprimer ton compte à tout moment, depuis ton profil (clique sur « Salut [ton pseudo] » en haut) ou via le bouton ci-dessous. La suppression efface <b>définitivement</b> ton pseudo, tes pronostics et tes statistiques. Cette action est irréversible.</p>
+        <button class="btn-del" id="reglesDelete" style="max-width:280px;margin:14px auto 0;display:block">Supprimer mon compte</button>
+      </div>
+
       <p class="reg-foot">Bonne chance et que le meilleur pronostiqueur gagne ! 🏁</p>
     </div>
   `;
+  const delBtn = document.getElementById('reglesDelete');
+  if(delBtn) delBtn.onclick = ()=> confirmDeleteAccount(null);
 }
 
 // ====== MOTEUR DE POINTS ======
