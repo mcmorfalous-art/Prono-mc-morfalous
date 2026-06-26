@@ -553,6 +553,26 @@ header::after{
 .cp-pod{font-size:13px;color:var(--bone);line-height:1.4}
 .cp-b5{color:#ffd954}
 
+/* ===== STATS MX DES NATIONS ===== */
+.mxdn-stats{margin:4px 0 14px;border:1px solid var(--line2);border-radius:11px;
+  background:var(--night2);overflow:hidden}
+.mxdn-stats summary{cursor:pointer;padding:12px 14px;font-family:'Barlow Condensed',sans-serif;
+  font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:14px;color:var(--cyan);
+  list-style:none}
+.mxdn-stats summary::-webkit-details-marker{display:none}
+.mxdn-stats summary::after{content:"▾";float:right;transition:transform .2s}
+.mxdn-stats[open] summary::after{transform:rotate(180deg)}
+.mxdn-stats-body{padding:0 14px 14px}
+.mxdn-intro{font-size:13px;color:var(--bone);line-height:1.45;margin-bottom:10px}
+.mxdn-tip{font-size:12.5px;color:var(--bone);background:rgba(30,167,225,.08);
+  border:1px solid rgba(30,167,225,.25);border-radius:9px;padding:8px 10px;margin-bottom:12px;line-height:1.45}
+.mxdn-table{width:100%;border-collapse:collapse;font-size:13.5px}
+.mxdn-table th{text-align:left;color:var(--bone-dim);font-size:11px;text-transform:uppercase;
+  letter-spacing:.06em;padding:4px 6px;border-bottom:1px solid var(--line2)}
+.mxdn-table td{padding:6px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--bone)}
+.mxdn-table td:first-child{color:var(--bone-dim);font-variant-numeric:tabular-nums;width:60px}
+.mxdn-note{font-size:11.5px;color:var(--bone-dim);font-style:italic;margin-top:10px;line-height:1.4}
+
 /* overlay / modale */
 .overlay{position:fixed;inset:0;z-index:60;background:rgba(6,14,22,.85);backdrop-filter:blur(4px);
   display:flex;align-items:center;justify-content:center;padding:20px}
@@ -708,7 +728,7 @@ function showIosInstallHelp(){
       <p class="sec-sub">Sur iPhone, l'installation se fait à la main (Apple ne permet pas le bouton automatique). C'est rapide :</p>
       <ol class="ios-steps">
         <li>Ouvre l'appli dans <b>Safari</b> (pas Chrome ni Firefox).</li>
-        <li>Appuie sur le bouton <b>Partager</b> en bas (le carré avec une flèche vers le haut).</li>
+        <li>Appuie sur le bouton <b>Partager</b> (le carré avec une flèche vers le haut), en bas de l'écran ou en haut à droite selon ton iPhone.</li>
         <li>Fais défiler et choisis <b>« Sur l'écran d'accueil »</b>.</li>
         <li>Appuie sur <b>Ajouter</b> en haut à droite.</li>
       </ol>
@@ -1277,7 +1297,7 @@ function renderRegles(v){
         <p style="margin-top:8px"><b>Sur iPhone / iPad :</b> Apple ne permet pas l'installation automatique, ça se fait à la main depuis <b>Safari</b> :</p>
         <ol class="ios-steps">
           <li>Ouvre l'appli dans <b>Safari</b> (pas Chrome ni Firefox).</li>
-          <li>Appuie sur le bouton <b>Partager</b> en bas (carré avec une flèche).</li>
+          <li>Appuie sur le bouton <b>Partager</b> (carré avec une flèche vers le haut), situé <b>en bas de l'écran</b> ou <b>en haut à droite</b> selon ton modèle d'iPhone.</li>
           <li>Choisis <b>« Sur l'écran d'accueil »</b>.</li>
           <li>Appuie sur <b>Ajouter</b>.</li>
         </ol>
@@ -1478,7 +1498,7 @@ function podiumTop3(ranked){
         <div class="pod-name">${r.pseudo}</div>
         <div class="pod-pts">${r.total} pts</div>
       </div>
-      <div class="pod-bar">${place}</div>
+      <div class="pod-bar"></div>
     </div>`;
   };
   // ordre d'affichage : 2e - 1er - 3e
@@ -1739,6 +1759,38 @@ function frDate(d){
   return dt.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'short'});
 }
 
+// ----- bloc stats / favoris pour le MX des Nations -----
+function mxdnStatsBlock(){
+  const palmares = [
+    ['2025','Australie','🇦🇺'],
+    ['2024','Australie','🇦🇺'],
+    ['2023','France','🇫🇷'],
+    ['2022','États-Unis','🇺🇸'],
+    ['2021','Italie','🇮🇹'],
+    ['2019','Pays-Bas','🇳🇱'],
+    ['2018','France','🇫🇷'],
+    ['2017','France','🇫🇷'],
+    ['2016','France','🇫🇷'],
+    ['2015','France','🇫🇷'],
+  ];
+  return `
+    <details class="mxdn-stats">
+      <summary>📊 Les nations à surveiller</summary>
+      <div class="mxdn-stats-body">
+        <p class="mxdn-intro">Pour t'aider à pronostiquer, voici le palmarès des dernières éditions. Les favoris habituels : <b>Australie</b>, <b>France</b>, <b>États-Unis</b> et <b>Pays-Bas</b>.</p>
+        <div class="mxdn-tip">🐺 Bon à savoir : la <b>France</b> a gagné 5 fois d'affilée (2014→2018) et l'<b>Australie</b> reste sur 2 titres consécutifs (2024-2025).</div>
+        <table class="mxdn-table">
+          <thead><tr><th>Année</th><th>Vainqueur</th></tr></thead>
+          <tbody>
+            ${palmares.map(([y,n,f])=>`<tr><td>${y}</td><td>${f} ${n}</td></tr>`).join('')}
+          </tbody>
+        </table>
+        <p class="mxdn-note">Note : le résultat dépend chaque année des pilotes engagés et du circuit. À toi de juger qui est en forme cette saison !</p>
+      </div>
+    </details>
+  `;
+}
+
 // ----- écran de prono d'une manche (250 + 450) -----
 async function openMancheProno(mancheId, manche){
   const v = document.getElementById('view');
@@ -1773,6 +1825,7 @@ async function openMancheProno(mancheId, manche){
       <div class="sec-title">${manche.nom}</div>
       <p class="sec-sub">${frDate(manche.date_course)}</p>
       ${statusBanner}
+      ${isNations() ? mxdnStatsBlock() : ''}
       ${closed ? '' : `<div class="countdown-banner" data-countdown="${manche.closes_at||''}">${countdownText(manche.closes_at)}</div>`}
       ${mancheCats(manche).map(c=> podiumBlock(c, byCat[c], closed)).join('')}
       ${closed ? '' : `<button class="propose-btn" id="proposeBtn">+ Proposer ${isNations()?'une nation absente':'un pilote absent'} de la liste</button>`}
