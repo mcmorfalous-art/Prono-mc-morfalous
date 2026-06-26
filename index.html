@@ -1617,7 +1617,8 @@ async function renderStats(v){
 
   v.innerHTML = `
     <div class="card">
-      ${!hasData ? '<div class="placeholder">Les stats apparaîtront dès les premiers pronostics et résultats.</div>' : `
+      ${isNations() ? mxdnStatsBlock(true) : ''}
+      ${!hasData ? `<div class="placeholder">${isNations()?'Les stats des joueurs apparaîtront dès les premiers pronostics et résultats. En attendant, consulte le palmarès des nations ci-dessus 👆':'Les stats apparaîtront dès les premiers pronostics et résultats.'}</div>` : `
       <div class="stat-sec">
         <div class="stat-title">⭐ Les plus pronostiqués</div>
         <p class="stat-desc">Les pilotes sur qui le club mise le plus.</p>
@@ -1760,7 +1761,7 @@ function frDate(d){
 }
 
 // ----- bloc stats / favoris pour le MX des Nations -----
-function mxdnStatsBlock(){
+function mxdnStatsBlock(openByDefault){
   const palmares = [
     ['2025','Australie','🇦🇺'],
     ['2024','Australie','🇦🇺'],
@@ -1774,7 +1775,7 @@ function mxdnStatsBlock(){
     ['2015','France','🇫🇷'],
   ];
   return `
-    <details class="mxdn-stats">
+    <details class="mxdn-stats"${openByDefault?' open':''}>
       <summary>📊 Les nations à surveiller</summary>
       <div class="mxdn-stats-body">
         <p class="mxdn-intro">Pour t'aider à pronostiquer, voici le palmarès des dernières éditions. Les favoris habituels : <b>Australie</b>, <b>France</b>, <b>États-Unis</b> et <b>Pays-Bas</b>.</p>
