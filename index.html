@@ -390,6 +390,9 @@ header::after{
 .install-banner .ib-close{flex-shrink:0;background:none;border:none;color:var(--bone-dim);
   font-size:15px;cursor:pointer;padding:0 2px}
 .install-banner .ib-close:hover{color:var(--bone)}
+.ios-steps{margin:6px 0 12px;padding-left:22px;color:var(--bone);font-size:14px;line-height:1.7}
+.ios-steps li{margin-bottom:4px}
+.ios-steps b{color:#fff}
 .lock{margin-left:auto;font-size:12px;color:var(--bone-dim);font-weight:400;letter-spacing:0}
 .pod-row{display:flex;align-items:center;gap:12px;margin-bottom:9px}
 .pod-row label{font-family:'Archivo Black',sans-serif;font-size:14px;color:var(--bone-dim);min-width:30px}
@@ -666,9 +669,10 @@ function renderInstallBanner(){
       <button class="ib-btn" id="ibInstall">Installer</button>
       <button class="ib-close" id="ibClose" aria-label="Fermer">×</button>`;
   } else if(isIOS()){
-    // iOS Safari : instructions
+    // iOS Safari : pas d'installation auto possible, on explique la méthode manuelle
     inner = `<div class="ib-ico">📲</div>
-      <div class="ib-txt"><b>Installe l'appli sur ton iPhone</b><br>Appuie sur Partager, puis « Sur l'écran d'accueil ».</div>
+      <div class="ib-txt"><b>Installe l'appli sur ton iPhone</b><br>Dans Safari : bouton Partager, puis « Sur l'écran d'accueil ».</div>
+      <button class="ib-btn" id="ibHelpIos">Comment ?</button>
       <button class="ib-close" id="ibClose" aria-label="Fermer">×</button>`;
   } else {
     return; // pas d'option d'install dispo
@@ -690,6 +694,32 @@ function renderInstallBanner(){
   };
   const close = document.getElementById('ibClose');
   if(close) close.onclick = ()=>{ __installDismissed = true; b.remove(); };
+  const helpIos = document.getElementById('ibHelpIos');
+  if(helpIos) helpIos.onclick = showIosInstallHelp;
+}
+
+// Modale d'aide à l'installation iOS
+function showIosInstallHelp(){
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.innerHTML = `
+    <div class="modal">
+      <div class="sec-title" style="font-size:17px">📲 Installer sur iPhone / iPad</div>
+      <p class="sec-sub">Sur iPhone, l'installation se fait à la main (Apple ne permet pas le bouton automatique). C'est rapide :</p>
+      <ol class="ios-steps">
+        <li>Ouvre l'appli dans <b>Safari</b> (pas Chrome ni Firefox).</li>
+        <li>Appuie sur le bouton <b>Partager</b> en bas (le carré avec une flèche vers le haut).</li>
+        <li>Fais défiler et choisis <b>« Sur l'écran d'accueil »</b>.</li>
+        <li>Appuie sur <b>Ajouter</b> en haut à droite.</li>
+      </ol>
+      <p class="sec-sub">L'icône Pronos MCM apparaîtra sur ton écran d'accueil, comme une vraie appli. 🐺</p>
+      <div class="modal-actions">
+        <button class="btn" id="iosOk" style="margin-top:0">C'est compris</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  document.getElementById('iosOk').onclick = ()=> ov.remove();
+  ov.onclick = (e)=>{ if(e.target===ov) ov.remove(); };
 }
 
 // ====== ÉCRAN AUTH (connexion / inscription) ======
@@ -1239,6 +1269,19 @@ function renderRegles(v){
       <div class="reg-block reg-prizes">
         <div class="reg-h"><span class="reg-num">🏆</span> Les récompenses</div>
         <p>En fin de saison, <b>les 3 premiers de chaque championnat</b> (MX US, MXGP, Vendée et MX des Nations) montent sur le podium et sont récompensés par le club. Chaque championnat a donc son propre podium : à toi de viser le sommet dans ta discipline préférée… ou dans toutes !</p>
+      </div>
+
+      <div class="reg-block">
+        <div class="reg-h"><span class="reg-num">📲</span> Installer l'appli sur ton téléphone</div>
+        <p><b>Sur Android :</b> un bandeau « Installer » apparaît en haut de l'appli. Appuie dessus, c'est automatique. (Sinon, menu ⋮ de Chrome → « Ajouter à l'écran d'accueil ».)</p>
+        <p style="margin-top:8px"><b>Sur iPhone / iPad :</b> Apple ne permet pas l'installation automatique, ça se fait à la main depuis <b>Safari</b> :</p>
+        <ol class="ios-steps">
+          <li>Ouvre l'appli dans <b>Safari</b> (pas Chrome ni Firefox).</li>
+          <li>Appuie sur le bouton <b>Partager</b> en bas (carré avec une flèche).</li>
+          <li>Choisis <b>« Sur l'écran d'accueil »</b>.</li>
+          <li>Appuie sur <b>Ajouter</b>.</li>
+        </ol>
+        <p>Une fois installée, l'appli s'ouvre en plein écran comme une vraie application, avec son icône du loup. 🐺</p>
       </div>
 
       <div class="reg-block reg-contact">
