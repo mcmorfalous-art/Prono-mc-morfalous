@@ -943,12 +943,56 @@ function mancheCats(manche){
   return cats();
 }
 
+// écran de recréation de profil après suppression (même email réutilisable)
+function renderRecreateProfil(session){
+  currentSession = session;
+  const meta = session.user.user_metadata || {};
+  app.innerHTML = `
+    <div class="card">
+      <div class="sec-title">Recrée ton profil</div>
+      <p class="sec-sub">Ton ancien compte a été supprimé, mais ton adresse est toujours reconnue. Choisis un pseudo et entre le code club pour rejouer. 🐺</p>
+      <div class="field">
+        <label>Pseudo</label>
+        <input id="rc_pseudo" type="text" maxlength="30" placeholder="Ton pseudo de jeu" value="${(meta.pseudo||'').replace(/"/g,'&quot;')}">
+      </div>
+      <div class="field">
+        <label>Code club</label>
+        <input id="rc_code" type="text" placeholder="Code réservé aux licenciés">
+      </div>
+      <div class="msg" id="rcMsg"></div>
+      <button class="btn" id="rcGo">Recréer mon profil</button>
+      <button class="btn-ghost sm" id="rcLogout" style="margin-top:10px">Se déconnecter</button>
+    </div>`;
+  document.getElementById('rcLogout').onclick = async ()=>{ await sb.auth.signOut(); mode='login'; renderAuth(); };
+  document.getElementById('rcGo').onclick = async ()=>{
+    const pseudo = (document.getElementById('rc_pseudo').value||'').trim();
+    const code = (document.getElementById('rc_code').value||'').trim();
+    const m = document.getElementById('rcMsg');
+    if(code !== CODE_CLUB){ m.className='msg show err'; m.textContent="Code club incorrect."; return; }
+    if(pseudo.length < 2){ m.className='msg show err'; m.textContent="Choisis un pseudo d'au moins 2 caractères."; return; }
+    const { error } = await sb.from('profils').insert({
+      id: session.user.id, pseudo, prenom: meta.prenom||null, nom: meta.nom||null
+    });
+    if(error){
+      m.className='msg show err';
+      m.textContent = (error.message.includes('duplicate')||error.message.includes('unique'))
+        ? "Ce pseudo est déjà pris, choisis-en un autre." : error.message;
+      return;
+    }
+    renderHome(session);
+  };
+}
+
 async function renderHome(session){
   currentSession = session;
   app.innerHTML = `<div class="card"><div class="loading">Chargement…</div></div>`;
   const uid = session.user.id;
   const { data: profil } = await sb.from('profils').select('*').eq('id', uid).single();
   currentProfil = profil;
+  // si le profil n'existe plus (compte supprimé), proposer de le recréer (même email réutilisable)
+  if(!profil){
+    return renderRecreateProfil(session);
+  }
   const isAdmin = profil?.is_admin;
 
   app.innerHTML = `
