@@ -322,6 +322,16 @@ header::after{
   font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;
   text-transform:uppercase;letter-spacing:.04em}
 .annul-btn:hover{border-color:var(--red);color:#ff8a80}
+
+/* bandeau d'alerte (rappel pronos) */
+.alert-banner{display:flex;align-items:center;gap:8px;
+  background:linear-gradient(135deg,rgba(226,59,46,.18),rgba(30,167,225,.14));
+  border:1px solid rgba(226,59,46,.4);border-radius:11px;padding:11px 14px;margin-bottom:14px;
+  font-size:13.5px;color:var(--bone);line-height:1.4}
+.alert-banner b{color:#fff}
+.alert-close{margin-left:auto;background:none;border:none;color:var(--bone-dim);
+  font-size:15px;cursor:pointer;flex-shrink:0;padding:0 4px}
+.alert-close:hover{color:var(--bone)}
 .lock{margin-left:auto;font-size:12px;color:var(--bone-dim);font-weight:400;letter-spacing:0}
 .pod-row{display:flex;align-items:center;gap:12px;margin-bottom:9px}
 .pod-row label{font-family:'Archivo Black',sans-serif;font-size:14px;color:var(--bone-dim);min-width:30px}
@@ -652,6 +662,7 @@ async function renderHome(session){
     <div class="champ-selector" id="champSelector">
       ${CHAMPS.map(c=>`<button class="champ-btn ${c===currentChamp?'active':''}" data-champ="${c}">${CHAMP_LABELS[c]||c}</button>`).join('')}
     </div>
+    <div id="alertBanner"></div>
     <nav class="nav" id="nav">
       <button class="nav-btn active" data-view="pronos">Pronos</button>
       <button class="nav-btn" data-view="mespronos">Mes pronos</button>
@@ -683,6 +694,45 @@ async function renderHome(session){
     };
   });
   switchView('pronos');
+  checkAlerts();
+}
+
+// ====== BANDEAU D'ALERTE (manches à pronostiquer bientôt fermées) ======
+async function checkAlerts(){
+  const el = document.getElementById('alertBanner');
+  if(!el) return;
+  const uid = currentSession.user.id;
+  // toutes les manches non annulées, tous championnats
+  const [manchesR, pronosR] = await Promise.all([
+    sb.from('manches').select('*'),
+    sb.from('pronos').select('manche_id,categorie').eq('user_id', uid),
+  ]);
+  const manches = (manchesR.data||[]).filter(m=>!m.annulee);
+  const pronoSet = new Set((pronosR.data||[]).map(p=>p.manche_id+'-'+p.categorie));
+  const now = Date.now();
+  const horizon = now + 3*24*3600*1000; // 3 jours
+
+  // manches ouvertes, fermeture < 3 jours, pas entièrement pronostiquées
+  let nb = 0;
+  manches.forEach(m=>{
+    if(!m.closes_at) return;
+    const t = new Date(m.closes_at).getTime();
+    if(t < now || t > horizon) return; // déjà fermée ou trop loin
+    const mc = (Array.isArray(m.categories)&&m.categories.length) ? m.categories
+             : (CHAMP_CATS[m.championnat]||['450','250']);
+    const allDone = mc.every(c=> pronoSet.has(m.id+'-'+c));
+    if(!allDone) nb++;
+  });
+
+  if(nb>0){
+    el.innerHTML = `<div class="alert-banner">
+      ⏰ <b>${nb} ${nb>1?'manches ferment':'manche ferme'} bientôt</b> et ${nb>1?'attendent':'attend'} ton pronostic !
+      <button class="alert-close" id="alertClose">✕</button>
+    </div>`;
+    document.getElementById('alertClose').onclick = ()=>{ el.innerHTML=''; };
+  } else {
+    el.innerHTML = '';
+  }
 }
 
 // ====== MON PROFIL (changer pseudo) ======
