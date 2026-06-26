@@ -418,6 +418,29 @@ header::after{
 .medal.gold{background:linear-gradient(180deg,#ffd954,#d9a400)}
 .medal.silver{background:linear-gradient(180deg,#dfe7ee,#9aa9b6)}
 .medal.bronze{background:linear-gradient(180deg,#d98f54,#a8632f);color:#fff}
+
+/* ===== PODIUM TOP 3 ===== */
+.podium-top{display:flex;justify-content:center;align-items:flex-end;gap:10px;
+  margin:6px 0 22px;padding:18px 8px 0}
+.pod-col{flex:1;max-width:130px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.pod-ava{width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:'Archivo Black',sans-serif;font-size:22px;color:#0a1622;margin-bottom:6px;
+  border:3px solid var(--night)}
+.pod-col.p1 .pod-ava{background:linear-gradient(180deg,#ffd954,#d9a400);width:64px;height:64px;font-size:26px;
+  box-shadow:0 0 22px rgba(255,217,84,.5)}
+.pod-col.p2 .pod-ava{background:linear-gradient(180deg,#dfe7ee,#9aa9b6)}
+.pod-col.p3 .pod-ava{background:linear-gradient(180deg,#d98f54,#a8632f);color:#fff}
+.pod-name{font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;
+  font-size:14px;color:#fff;line-height:1.1;margin-bottom:3px;
+  max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pod-pts{font-family:'Archivo Black',sans-serif;font-size:15px;color:var(--cyan);margin-bottom:8px}
+.pod-bar{width:100%;border-radius:8px 8px 0 0;background:linear-gradient(180deg,var(--steel),var(--night2));
+  border:1px solid var(--line2);border-bottom:none;display:flex;align-items:flex-start;justify-content:center;
+  padding-top:8px;font-family:'Archivo Black',sans-serif;font-size:20px}
+.pod-col.p1 .pod-bar{height:96px;color:#ffd954;border-color:rgba(255,217,84,.4)}
+.pod-col.p2 .pod-bar{height:68px;color:#cfd9e2}
+.pod-col.p3 .pod-bar{height:50px;color:#d98f54}
+.pod-crown{font-size:20px;margin-bottom:2px;height:22px}
 .rk-name{text-align:left!important;font-family:'Barlow Condensed',sans-serif;font-weight:700;
   font-size:16px;text-transform:uppercase;color:#fff}
 .rk-sub{color:var(--bone-dim);font-size:13px;font-variant-numeric:tabular-nums}
@@ -900,6 +923,8 @@ async function goToManche(mancheId, champ){
   // activer l'onglet Pronos
   document.querySelectorAll('.nav-btn').forEach(x=>x.classList.toggle('active', x.dataset.view==='pronos'));
   pronosState.tab = 'manches';
+  // charger les pilotes du championnat avant d'ouvrir le prono (sinon noms vides)
+  await loadPilotes();
   // récupérer la manche et ouvrir son prono
   const { data: m } = await sb.from('manches').select('*').eq('id', mancheId).single();
   if(m){ openMancheProno(m.id, m); }
@@ -1173,8 +1198,8 @@ function renderRegles(v){
       </div>
 
       <div class="reg-block reg-prizes">
-        <div class="reg-h"><span class="reg-num">🏆</span> Les lots (classement général)</div>
-        <p>En fin de saison, les <b>3 premiers du classement général</b> remportent des lots offerts par le club. De quoi ajouter un peu de piment à la bagarre !</p>
+        <div class="reg-h"><span class="reg-num">🏆</span> Les récompenses</div>
+        <p>En fin de saison, <b>les 3 premiers de chaque championnat</b> (MX US, MXGP, Vendée et MX des Nations) montent sur le podium et sont récompensés par le club. Chaque championnat a donc son propre podium : à toi de viser le sommet dans ta discipline préférée… ou dans toutes !</p>
       </div>
 
       <div class="reg-block reg-contact">
@@ -1324,7 +1349,8 @@ async function renderClassement(v){
       </div>
       ${!hasAnyResult ? '<div class="placeholder">Aucun résultat saisi pour le moment. Le classement apparaîtra dès le premier résultat de manche enregistré.</div>'
       : ranked.length===0 ? '<div class="placeholder">Aucun joueur inscrit pour le moment.</div>'
-      : `<div class="rank-hint">Touche un joueur pour voir le détail de ses points</div>
+      : `${podiumTop3(ranked)}
+         <div class="rank-hint">Touche un joueur pour voir le détail de ses points</div>
          <table class="rank-table">
           <thead><tr><th>#</th><th>Pilote</th>${catHeaders}<th>Pts</th></tr></thead>
           <tbody>${ranked.map((r,i)=>rankRow(r,i,cat,myCats)).join('')}</tbody>
@@ -1343,6 +1369,30 @@ async function renderClassement(v){
       }
     };
   });
+}
+
+function podiumTop3(ranked){
+  // ne garder que ceux qui ont des points
+  const top = ranked.filter(r=> r.total>0).slice(0,3);
+  if(top.length===0) return '';
+  const initial = (s)=> (s||'?').trim().charAt(0).toUpperCase() || '?';
+  const col = (r, place)=>{
+    if(!r) return `<div class="pod-col p${place}"></div>`;
+    const crown = place===1 ? '<div class="pod-crown">👑</div>' : '<div class="pod-crown"></div>';
+    return `<div class="pod-col p${place}">
+      ${crown}
+      <div class="pod-ava">${initial(r.pseudo)}</div>
+      <div class="pod-name">${r.pseudo}</div>
+      <div class="pod-pts">${r.total} pts</div>
+      <div class="pod-bar">${place}</div>
+    </div>`;
+  };
+  // ordre d'affichage : 2e - 1er - 3e
+  return `<div class="podium-top">
+    ${col(top[1], 2)}
+    ${col(top[0], 1)}
+    ${col(top[2], 3)}
+  </div>`;
 }
 
 function rankRow(r, i, cat, myCats){
