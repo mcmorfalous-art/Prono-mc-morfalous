@@ -327,7 +327,9 @@ header::after{
 .alert-banner{display:flex;align-items:center;gap:8px;
   background:linear-gradient(135deg,rgba(226,59,46,.18),rgba(30,167,225,.14));
   border:1px solid rgba(226,59,46,.4);border-radius:11px;padding:11px 14px;margin-bottom:14px;
-  font-size:13.5px;color:var(--bone);line-height:1.4}
+  font-size:13.5px;color:var(--bone);line-height:1.4;cursor:pointer;transition:border-color .15s,transform .1s}
+.alert-banner:hover{border-color:rgba(226,59,46,.75)}
+.alert-banner:active{transform:scale(.99)}
 .alert-banner b{color:#fff}
 .alert-close{margin-left:auto;background:none;border:none;color:var(--bone-dim);
   font-size:15px;cursor:pointer;flex-shrink:0;padding:0 4px}
@@ -852,7 +854,7 @@ async function checkAlerts(){
   const horizon = now + 3*24*3600*1000; // 3 jours
 
   // manches ouvertes, fermeture < 3 jours, pas entièrement pronostiquées
-  let nb = 0;
+  const aFaire = [];
   manches.forEach(m=>{
     if(!m.closes_at) return;
     const t = new Date(m.closes_at).getTime();
@@ -860,18 +862,44 @@ async function checkAlerts(){
     const mc = (Array.isArray(m.categories)&&m.categories.length) ? m.categories
              : (CHAMP_CATS[m.championnat]||['450','250']);
     const allDone = mc.every(c=> pronoSet.has(m.id+'-'+c));
-    if(!allDone) nb++;
+    if(!allDone) aFaire.push({m, t});
   });
+  const nb = aFaire.length;
 
   if(nb>0){
-    el.innerHTML = `<div class="alert-banner">
+    // la plus urgente = celle qui ferme le plus tôt
+    aFaire.sort((a,b)=> a.t - b.t);
+    const cible = aFaire[0].m;
+    el.innerHTML = `<div class="alert-banner" id="alertGo" role="button" tabindex="0">
       ⏰ <b>${nb} ${nb>1?'manches ferment':'manche ferme'} bientôt</b> et ${nb>1?'attendent':'attend'} ton pronostic !
-      <button class="alert-close" id="alertClose">✕</button>
+      <button class="alert-close" id="alertClose" aria-label="Fermer">✕</button>
     </div>`;
-    document.getElementById('alertClose').onclick = ()=>{ el.innerHTML=''; };
+    document.getElementById('alertGo').onclick = (e)=>{
+      if(e.target.closest('#alertClose')) return; // clic sur la croix
+      goToManche(cible.id, cible.championnat);
+    };
+    document.getElementById('alertClose').onclick = (e)=>{ e.stopPropagation(); el.innerHTML=''; };
   } else {
     el.innerHTML = '';
   }
+}
+
+// aller directement au prono d'une manche (depuis le bandeau d'alerte)
+async function goToManche(mancheId, champ){
+  // basculer de championnat si nécessaire
+  if(champ && champ !== currentChamp){
+    currentChamp = champ;
+    document.querySelectorAll('.champ-btn').forEach(x=>x.classList.toggle('active', x.dataset.champ===currentChamp));
+    PILOTES = {};
+    CHAMP_CLOSES_LOADED_FOR = null;
+  }
+  // activer l'onglet Pronos
+  document.querySelectorAll('.nav-btn').forEach(x=>x.classList.toggle('active', x.dataset.view==='pronos'));
+  pronosState.tab = 'manches';
+  // récupérer la manche et ouvrir son prono
+  const { data: m } = await sb.from('manches').select('*').eq('id', mancheId).single();
+  if(m){ openMancheProno(m.id, m); }
+  else { switchView('pronos'); }
 }
 
 // ====== MON PROFIL (changer pseudo) ======
