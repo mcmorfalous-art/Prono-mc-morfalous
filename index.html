@@ -528,6 +528,15 @@ header::after{
 .det-pts{font-family:'Archivo Black',sans-serif;font-size:14px;color:var(--green);font-variant-numeric:tabular-nums}
 .det-pts.neg{color:var(--red)}
 .det-empty{font-size:12.5px;color:var(--bone-dim);text-align:center;padding:10px;font-style:italic}
+/* podium top3 cliquable + panneau détail */
+.podium-top .pod-col[data-uid]{cursor:pointer}
+.podium-top .pod-col[data-uid] .pod-ava{transition:transform .15s ease,box-shadow .15s ease}
+.podium-top .pod-col[data-uid].sel .pod-ava{transform:scale(1.06);box-shadow:0 0 0 3px var(--cyan)}
+.pod-detail{margin:0 0 16px;border:1px solid var(--line2);border-radius:13px;background:var(--night);
+  overflow:hidden;max-height:0;opacity:0;transition:max-height .28s ease,opacity .2s ease}
+.pod-detail.open{max-height:600px;opacity:1;padding:10px 8px}
+.pod-detail .pd-head{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;
+  color:var(--cyan);text-transform:uppercase;letter-spacing:.04em;padding:2px 6px 8px}
 
 /* page règles */
 .regles .reg-intro{color:var(--bone-dim);font-size:14px;line-height:1.5;margin-bottom:20px}
@@ -1605,8 +1614,9 @@ async function renderClassement(v){
       ${!hasAnyResult ? '<div class="placeholder">Aucun résultat saisi pour le moment. Le classement apparaîtra dès le premier résultat de manche enregistré.</div>'
       : ranked.length===0 ? '<div class="placeholder">Aucun joueur inscrit pour le moment.</div>'
       : `${podiumTop3(ranked)}
-         ${ranked.length>3 ? `<div class="rank-hint">Touche un joueur pour voir le détail de ses points</div>
-         <table class="rank-table">
+         <div class="pod-detail" id="podDetail"></div>
+         <div class="rank-hint">Touche un joueur pour voir le détail de ses points</div>
+         ${ranked.length>3 ? `<table class="rank-table">
           <thead><tr><th>#</th><th>Pilote</th>${catHeaders}<th>Pts</th></tr></thead>
           <tbody>${ranked.slice(3).map((r,i)=>rankRow(r,i+3,cat,myCats)).join('')}</tbody>
         </table>` : ''}`}
@@ -1622,6 +1632,21 @@ async function renderClassement(v){
       if(det && det.classList.contains('detail-row')){
         det.classList.toggle('open');
       }
+    };
+  });
+  // clic sur un joueur du podium (top 3) → afficher son détail au-dessus du tableau
+  const podBox = v.querySelector('#podDetail');
+  v.querySelectorAll('.podium-top .pod-col[data-uid]').forEach(colEl=>{
+    colEl.onclick = ()=>{
+      const uid = colEl.dataset.uid;
+      const r = ranked.find(x=> String(x.id)===String(uid));
+      if(!r || !podBox) return;
+      const already = colEl.classList.contains('sel');
+      v.querySelectorAll('.podium-top .pod-col').forEach(c=>c.classList.remove('sel'));
+      if(already){ podBox.classList.remove('open'); podBox.innerHTML=''; return; }
+      colEl.classList.add('sel');
+      podBox.innerHTML = `<div class="pd-head">${r.pseudo}</div>${detailLines(r, cat)}`;
+      podBox.classList.add('open');
     };
   });
   // déclenche l'animation de chute du podium (rejouable à chaque affichage)
@@ -1644,7 +1669,7 @@ function podiumTop3(ranked){
   const col = (r, place)=>{
     if(!r) return `<div class="pod-col p${place}"></div>`;
     const crown = place===1 ? '<div class="pod-crown">👑</div>' : '<div class="pod-crown"></div>';
-    return `<div class="pod-col p${place}">
+    return `<div class="pod-col p${place}" data-uid="${r.id}">
       <div class="pod-drop">
         ${crown}
         <div class="pod-ava">${initial(r.pseudo)}</div>
@@ -1662,6 +1687,18 @@ function podiumTop3(ranked){
   </div>`;
 }
 
+function detailLines(r, cat){
+  const items = (r.detail||[])
+    .filter(d => cat==='global' ? true : d.cat===cat)
+    .sort((a,b)=> a.ordre-b.ordre);
+  return items.length
+    ? items.map(d=>`<div class="det-line">
+        <span class="det-label">${d.label} <span class="det-cat">${d.cat}</span></span>
+        <span class="det-pts ${d.points<0?'neg':''}">${d.points>0?'+':''}${d.points}</span>
+      </div>`).join('')
+    : '<div class="det-empty">Aucun point sur cette catégorie pour le moment.</div>';
+}
+
 function rankRow(r, i, cat, myCats){
   const medal = i===0?'gold':i===1?'silver':i===2?'bronze':'';
   const rankBadge = i<3 ? `<span class="medal ${medal}">${i+1}</span>` : `<span class="rk">${i+1}</span>`;
@@ -1671,15 +1708,7 @@ function rankRow(r, i, cat, myCats){
   const colspan = 2 + ((cat==='global' && myCats) ? myCats.length : 0) + 1;
 
   // construire le détail (filtré selon la catégorie affichée)
-  const items = (r.detail||[])
-    .filter(d => cat==='global' ? true : d.cat===cat)
-    .sort((a,b)=> a.ordre-b.ordre);
-  const detailHtml = items.length
-    ? items.map(d=>`<div class="det-line">
-        <span class="det-label">${d.label} <span class="det-cat">${d.cat}</span></span>
-        <span class="det-pts ${d.points<0?'neg':''}">${d.points>0?'+':''}${d.points}</span>
-      </div>`).join('')
-    : '<div class="det-empty">Aucun point sur cette catégorie pour le moment.</div>';
+  const detailHtml = detailLines(r, cat);
 
   return `<tr class="rank-row">
     <td>${rankBadge}</td>
