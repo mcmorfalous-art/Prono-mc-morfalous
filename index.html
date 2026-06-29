@@ -672,7 +672,53 @@ header::after{
   font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
 .propos-ok{background:var(--green);color:#fff}
 .propos-no{background:var(--night);color:var(--bone-dim);border:1px solid var(--line2)}
+
+/* ===== CHAT DU CLUB ===== */
+#chatFab{position:fixed;right:18px;bottom:18px;z-index:900;width:60px;height:60px;border-radius:50%;
+  border:none;cursor:pointer;background:linear-gradient(180deg,var(--cyan),var(--cyan-deep));
+  box-shadow:0 8px 22px rgba(0,0,0,.45),0 0 0 4px rgba(30,167,225,.12);
+  display:flex;align-items:center;justify-content:center;font-size:26px;transition:transform .15s ease}
+#chatFab:hover{transform:scale(1.06)}
+#chatFab:active{transform:scale(.96)}
+#chatFab .chat-badge{position:absolute;top:-3px;right:-3px;min-width:22px;height:22px;padding:0 5px;
+  border-radius:11px;background:var(--red);color:#fff;font-family:'Barlow Condensed',sans-serif;
+  font-weight:700;font-size:12px;display:none;align-items:center;justify-content:center;
+  box-shadow:0 2px 6px rgba(0,0,0,.4)}
+#chatFab .chat-badge.show{display:flex}
+
+#chatPanel{position:fixed;right:18px;bottom:88px;z-index:901;width:360px;max-width:calc(100vw - 36px);
+  height:520px;max-height:calc(100vh - 130px);background:var(--night2);border:1px solid var(--line2);
+  border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.55);display:none;flex-direction:column;overflow:hidden}
+#chatPanel.open{display:flex;animation:chatpop .2s ease}
+@keyframes chatpop{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+.chat-head{display:flex;align-items:center;gap:9px;padding:13px 15px;background:var(--night);
+  border-bottom:1px solid var(--line2)}
+.chat-head .ch-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:17px;
+  text-transform:uppercase;letter-spacing:.04em;color:#fff;flex:1}
+.chat-head .ch-dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
+.chat-head .ch-close{background:none;border:none;color:var(--bone-dim);font-size:22px;cursor:pointer;line-height:1;padding:0 4px}
+.chat-body{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:9px}
+.chat-body::-webkit-scrollbar{width:7px}.chat-body::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
+.chat-empty{margin:auto;color:var(--bone-dim);font-size:13px;text-align:center;line-height:1.5;font-style:italic}
+.cmsg{display:flex;flex-direction:column;gap:2px;max-width:84%}
+.cmsg .cm-meta{display:flex;align-items:baseline;gap:7px;font-size:11px}
+.cmsg .cm-pseudo{font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.02em;font-size:13px}
+.cmsg .cm-time{color:var(--bone-dim);font-size:10px}
+.cmsg .cm-bubble{background:var(--night);border:1px solid var(--line2);border-radius:12px;
+  padding:8px 11px;font-size:14px;line-height:1.4;color:var(--bone);word-break:break-word}
+.cmsg.mine{align-self:flex-end;align-items:flex-end}
+.cmsg.mine .cm-bubble{background:linear-gradient(180deg,var(--cyan),var(--cyan-deep));color:#fff;border:none}
+.cmsg.mine .cm-del{background:none;border:none;color:rgba(255,255,255,.5);font-size:10px;cursor:pointer;
+  font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.04em;padding:1px 0 0}
+.chat-foot{display:flex;gap:8px;padding:11px;border-top:1px solid var(--line2);background:var(--night)}
+.chat-foot input{flex:1;padding:11px 13px;border-radius:12px;background:var(--night2);
+  border:1px solid var(--line2);color:var(--bone);font-size:14px;font-family:inherit}
+.chat-foot input:focus{outline:none;border-color:var(--cyan)}
+.chat-foot button{border:none;border-radius:12px;cursor:pointer;width:46px;
+  background:linear-gradient(180deg,var(--cyan),var(--cyan-deep));color:#fff;font-size:19px}
+.chat-foot button:disabled{opacity:.5;cursor:default}
 </style>
+
 </head>
 <body>
 <div id="splash">
@@ -823,6 +869,7 @@ function showIosInstallHelp(){
 let mode = 'login';
 
 function renderAuth(){
+  teardownChat();
   // message de retour après confirmation d'email (redirigé depuis Supabase)
   let confirmBanner = '';
   const params = new URLSearchParams(window.location.search);
@@ -1091,6 +1138,7 @@ async function renderHome(session){
   switchView('pronos');
   checkAlerts();
   renderInstallBanner();
+  initChat();
 }
 
 // ====== BANDEAU D'ALERTE (manches à pronostiquer bientôt fermées) ======
@@ -2774,6 +2822,170 @@ async function saveResult(mancheId, manche){
 }
 
 function showRMsg(t,type){ const m=document.getElementById('rmsg'); if(m){ m.textContent=t; m.className='msg show '+type; } }
+
+// ====== CHAT DU CLUB ======
+let chatInited = false;
+let chatChannel = null;
+let chatOpen = false;
+let chatUnread = 0;
+let chatSeenIds = new Set();
+
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function chatTime(iso){
+  const d=new Date(iso);
+  return d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+}
+function colorFromName(name){
+  let h=0; for(let i=0;i<(name||'').length;i++) h=(h*31+name.charCodeAt(i))%360;
+  return `hsl(${h},60%,68%)`;
+}
+
+function initChat(){
+  if(chatInited) return;
+  chatInited = true;
+
+  // bouton flottant
+  const fab=document.createElement('button');
+  fab.id='chatFab';
+  fab.innerHTML=`💬<span class="chat-badge" id="chatBadge"></span>`;
+  document.body.appendChild(fab);
+
+  // panneau
+  const panel=document.createElement('div');
+  panel.id='chatPanel';
+  panel.innerHTML=`
+    <div class="chat-head">
+      <span class="ch-dot"></span>
+      <span class="ch-title">Chat du club</span>
+      <button class="ch-close" id="chatClose">×</button>
+    </div>
+    <div class="chat-body" id="chatBody"><div class="chat-empty">Chargement des messages…</div></div>
+    <div class="chat-foot">
+      <input id="chatInput" type="text" maxlength="500" placeholder="Écris un message…" autocomplete="off">
+      <button id="chatSend" title="Envoyer">➤</button>
+    </div>`;
+  document.body.appendChild(panel);
+
+  fab.onclick = ()=> toggleChat();
+  document.getElementById('chatClose').onclick = ()=> toggleChat(false);
+  const input=document.getElementById('chatInput');
+  const sendBtn=document.getElementById('chatSend');
+  sendBtn.onclick = sendChatMessage;
+  input.onkeydown = e=>{ if(e.key==='Enter'){ e.preventDefault(); sendChatMessage(); } };
+
+  loadChatMessages();
+  subscribeChat();
+}
+
+async function loadChatMessages(){
+  const body=document.getElementById('chatBody');
+  if(!body) return;
+  const { data, error } = await sb.from('chat_messages')
+    .select('*').order('created_at',{ascending:false}).limit(100);
+  if(error){ body.innerHTML=`<div class="chat-empty">Impossible de charger le chat.</div>`; return; }
+  const msgs=(data||[]).reverse();
+  body.innerHTML = msgs.length ? '' : `<div class="chat-empty">Aucun message pour le moment.<br>Lance la discussion ! 🐺</div>`;
+  msgs.forEach(m=>{ chatSeenIds.add(m.id); body.appendChild(renderChatMsg(m)); });
+  body.scrollTop = body.scrollHeight;
+}
+
+function renderChatMsg(m){
+  const mine = currentSession && m.user_id===currentSession.user.id;
+  const el=document.createElement('div');
+  el.className='cmsg'+(mine?' mine':'');
+  el.dataset.id=m.id;
+  el.innerHTML=`
+    <div class="cm-meta">
+      ${mine?'':`<span class="cm-pseudo" style="color:${colorFromName(m.pseudo)}">${escapeHtml(m.pseudo)}</span>`}
+      <span class="cm-time">${chatTime(m.created_at)}</span>
+    </div>
+    <div class="cm-bubble">${escapeHtml(m.contenu)}</div>
+    ${mine?`<button class="cm-del" data-del="${m.id}">supprimer</button>`:''}`;
+  if(mine){
+    el.querySelector('.cm-del').onclick = async ()=>{
+      await sb.from('chat_messages').delete().eq('id', m.id);
+      el.remove();
+    };
+  }
+  return el;
+}
+
+function subscribeChat(){
+  if(chatChannel) return;
+  chatChannel = sb.channel('chat_club')
+    .on('postgres_changes',
+      { event:'INSERT', schema:'public', table:'chat_messages' },
+      payload=>{
+        const m=payload.new;
+        if(chatSeenIds.has(m.id)) return;
+        chatSeenIds.add(m.id);
+        const body=document.getElementById('chatBody');
+        if(!body) return;
+        const empty=body.querySelector('.chat-empty'); if(empty) empty.remove();
+        const nearBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 80;
+        body.appendChild(renderChatMsg(m));
+        if(nearBottom || (currentSession && m.user_id===currentSession.user.id))
+          body.scrollTop=body.scrollHeight;
+        // badge non-lus si fermé et message d'un autre
+        if(!chatOpen && !(currentSession && m.user_id===currentSession.user.id)){
+          chatUnread++; updateChatBadge();
+        }
+      })
+    .on('postgres_changes',
+      { event:'DELETE', schema:'public', table:'chat_messages' },
+      payload=>{
+        const body=document.getElementById('chatBody'); if(!body) return;
+        const el=body.querySelector(`.cmsg[data-id="${payload.old.id}"]`);
+        if(el) el.remove();
+      })
+    .subscribe();
+}
+
+function toggleChat(force){
+  const panel=document.getElementById('chatPanel');
+  chatOpen = (force===undefined) ? !chatOpen : force;
+  panel.classList.toggle('open', chatOpen);
+  if(chatOpen){
+    chatUnread=0; updateChatBadge();
+    const body=document.getElementById('chatBody');
+    if(body) body.scrollTop=body.scrollHeight;
+    setTimeout(()=>{ const i=document.getElementById('chatInput'); if(i) i.focus(); }, 50);
+  }
+}
+
+function updateChatBadge(){
+  const b=document.getElementById('chatBadge');
+  if(!b) return;
+  if(chatUnread>0){ b.textContent = chatUnread>99?'99+':chatUnread; b.classList.add('show'); }
+  else b.classList.remove('show');
+}
+
+let lastChatSent = '';
+async function sendChatMessage(){
+  const input=document.getElementById('chatInput');
+  const btn=document.getElementById('chatSend');
+  if(!input || !currentSession) return;
+  const txt = input.value.trim();
+  if(!txt) return;
+  if(txt === lastChatSent){ input.value=''; return; } // anti double-message
+  btn.disabled=true;
+  const { error } = await sb.from('chat_messages').insert({
+    user_id: currentSession.user.id,
+    pseudo: (currentProfil && currentProfil.pseudo) || 'Joueur',
+    contenu: txt.slice(0,500)
+  });
+  btn.disabled=false;
+  if(!error){ lastChatSent=txt; input.value=''; input.focus(); }
+  else { alert("Message non envoyé, réessaie."); }
+}
+
+function teardownChat(){
+  if(chatChannel){ try{ sb.removeChannel(chatChannel); }catch(e){} chatChannel=null; }
+  ['chatFab','chatPanel'].forEach(id=>{ const el=document.getElementById(id); if(el) el.remove(); });
+  chatInited=false; chatOpen=false; chatUnread=0; chatSeenIds=new Set();
+}
 
 // ====== DÉMARRAGE ======
 async function boot(){
