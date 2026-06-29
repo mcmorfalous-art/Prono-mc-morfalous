@@ -551,6 +551,22 @@ header::after{
 .pod-detail .pd-head{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;
   color:var(--cyan);text-transform:uppercase;letter-spacing:.04em;padding:2px 6px 8px}
 
+/* ---- révélation animée des points ---- */
+.reveal-total{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0 12px}
+.reveal-total .rt-num{font-family:'Archivo Black',sans-serif;font-size:46px;line-height:1;
+  font-variant-numeric:tabular-nums;color:var(--green);text-shadow:0 0 18px rgba(46,204,113,.35)}
+.reveal-total .rt-num.neg{color:#ff6b5e;text-shadow:0 0 18px rgba(255,107,94,.3)}
+.reveal-total .rt-num.zero{color:var(--bone-dim);text-shadow:none}
+.reveal-total .rt-lbl{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;
+  letter-spacing:.08em;font-size:12px;color:var(--bone-dim)}
+.reveal-total .rt-num.pop{animation:rtpop .4s ease}
+@keyframes rtpop{0%{transform:scale(1)}40%{transform:scale(1.18)}100%{transform:scale(1)}}
+.det-line.rv{opacity:0;transform:translateY(8px);animation:rvline .34s ease forwards}
+@keyframes rvline{to{opacity:1;transform:translateY(0)}}
+.det-line.flash{animation:rvline .34s ease forwards, rvflash .6s ease}
+@keyframes rvflash{0%{background:rgba(46,204,113,.0)}30%{background:rgba(46,204,113,.18)}100%{background:rgba(46,204,113,0)}}
+#confettiCanvas{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999}
+
 /* page règles */
 .regles .reg-intro{color:var(--bone-dim);font-size:14px;line-height:1.5;margin-bottom:20px}
 .reg-block{margin-bottom:20px}
@@ -1683,12 +1699,18 @@ async function renderClassement(v){
   v.querySelectorAll('.sub-btn').forEach(b=>{
     b.onclick = ()=>{ classState.cat=b.dataset.cat; renderClassement(v); };
   });
-  // clic sur une ligne → afficher / masquer le détail
+  // clic sur une ligne → afficher / masquer le détail (avec révélation animée à l'ouverture)
   v.querySelectorAll('.rank-row').forEach(row=>{
     row.onclick = ()=>{
       const det = row.nextElementSibling;
       if(det && det.classList.contains('detail-row')){
+        const opening = !det.classList.contains('open');
         det.classList.toggle('open');
+        if(opening){
+          const r = ranked.find(x=> String(x.id)===String(row.dataset.uid));
+          const wrap = det.querySelector('.det-wrap');
+          if(r && wrap) revealDetail(wrap, r, cat, false);
+        }
       }
     };
   });
@@ -1703,8 +1725,8 @@ async function renderClassement(v){
       v.querySelectorAll('.podium-top .pod-col').forEach(c=>c.classList.remove('sel'));
       if(already){ podBox.classList.remove('open'); podBox.innerHTML=''; return; }
       colEl.classList.add('sel');
-      podBox.innerHTML = `<div class="pd-head">${r.pseudo}</div>${detailLines(r, cat)}`;
       podBox.classList.add('open');
+      revealDetail(podBox, r, cat);
     };
   });
   // déclenche l'animation de chute du podium (rejouable à chaque affichage)
@@ -1745,6 +1767,97 @@ function podiumTop3(ranked){
   </div>`;
 }
 
+// ---- confettis (canvas léger, sans lib) ----
+function fireConfetti(intensity){
+  intensity = intensity || 1;
+  let cv = document.getElementById('confettiCanvas');
+  if(!cv){ cv=document.createElement('canvas'); cv.id='confettiCanvas'; document.body.appendChild(cv); }
+  const ctx = cv.getContext('2d');
+  const dpr = window.devicePixelRatio||1;
+  cv.width = innerWidth*dpr; cv.height = innerHeight*dpr; ctx.scale(dpr,dpr);
+  const colors = ['#1ea7e1','#e23b2e','#ffe27a','#2ecc71','#ffffff'];
+  const N = Math.round(80*intensity);
+  const parts = [];
+  for(let i=0;i<N;i++){
+    parts.push({
+      x: innerWidth/2 + (Math.random()-.5)*120,
+      y: innerHeight*0.32,
+      vx:(Math.random()-.5)*9,
+      vy:-(Math.random()*9+5),
+      g:0.28+Math.random()*0.15,
+      s:5+Math.random()*6,
+      rot:Math.random()*6.28, vr:(Math.random()-.5)*0.3,
+      c:colors[(Math.random()*colors.length)|0],
+      life:0, max:90+Math.random()*40
+    });
+  }
+  let raf;
+  (function loop(){
+    ctx.clearRect(0,0,innerWidth,innerHeight);
+    let alive=false;
+    parts.forEach(p=>{
+      if(p.life>p.max) return;
+      alive=true; p.life++;
+      p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr;
+      const a = Math.max(0, 1-(p.life/p.max));
+      ctx.save(); ctx.globalAlpha=a; ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.fillStyle=p.c; ctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*0.6); ctx.restore();
+    });
+    if(alive){ raf=requestAnimationFrame(loop); }
+    else { ctx.clearRect(0,0,innerWidth,innerHeight); if(cv.parentNode) cv.parentNode.removeChild(cv); }
+  })();
+}
+
+// ---- révélation animée du détail des points ----
+function revealDetail(container, r, cat, showHead){
+  showHead = showHead !== false;
+  const items = (r.detail||[])
+    .filter(d => cat==='global' ? true : d.cat===cat)
+    .sort((a,b)=> a.ordre-b.ordre);
+  const total = items.reduce((s,d)=> s + (d.points||0), 0);
+  const totCls = total>0?'':(total<0?'neg':'zero');
+  const head = showHead ? `<div class="pd-head">${r.pseudo}</div>` : '';
+  if(!items.length){
+    container.innerHTML = head + `<div class="det-empty">Aucun point sur cette catégorie pour le moment.</div>`;
+    return;
+  }
+  // structure : gros total animé + lignes cachées
+  container.innerHTML = head +
+    `<div class="reveal-total"><span class="rt-num ${totCls}">0</span><span class="rt-lbl">points</span></div>
+    <div class="rv-lines"></div>`;
+  const numEl = container.querySelector('.rt-num');
+  const linesBox = container.querySelector('.rv-lines');
+  let running = 0;
+  // apparition séquentielle des lignes + cumul du total
+  items.forEach((d,i)=>{
+    setTimeout(()=>{
+      const line=document.createElement('div');
+      const big = d.points>=10;
+      line.className='det-line rv'+(d.points>0?' flash':'');
+      line.innerHTML=`<span class="det-label">${d.label} <span class="det-cat">${d.cat}</span></span>
+        <span class="det-pts ${d.points<0?'neg':''}">${d.points>0?'+':''}${d.points}</span>`;
+      linesBox.appendChild(line);
+      // anime le total de running -> running+points
+      const from=running, to=running+(d.points||0); running=to;
+      const dur=420, t0=performance.now();
+      (function tick(now){
+        const k=Math.min(1,(now-t0)/dur);
+        const val=Math.round(from+(to-from)*(k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2));
+        numEl.textContent=val;
+        if(k<1) requestAnimationFrame(tick);
+        else { numEl.classList.remove('pop'); void numEl.offsetWidth; numEl.classList.add('pop'); }
+      })(t0);
+    }, 120 + i*320);
+  });
+  // confettis final selon performance
+  const hasPerfect = items.some(d=> d.points>=15);
+  const has5x = items.some(d=> /5e/i.test(d.label) && d.points>0);
+  setTimeout(()=>{
+    if(hasPerfect) fireConfetti(1.6);
+    else if(total>=10 || has5x) fireConfetti(1);
+  }, 160 + items.length*320 + 200);
+}
+
 function detailLines(r, cat){
   const items = (r.detail||[])
     .filter(d => cat==='global' ? true : d.cat===cat)
@@ -1768,7 +1881,7 @@ function rankRow(r, i, cat, myCats){
   // construire le détail (filtré selon la catégorie affichée)
   const detailHtml = detailLines(r, cat);
 
-  return `<tr class="rank-row">
+  return `<tr class="rank-row" data-uid="${r.id}">
     <td>${rankBadge}</td>
     <td class="rk-name">${r.pseudo}</td>
     ${cols}
