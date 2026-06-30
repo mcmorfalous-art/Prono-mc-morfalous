@@ -673,6 +673,36 @@ header::after{
 .propos-ok{background:var(--green);color:#fff}
 .propos-no{background:var(--night);color:var(--bone-dim);border:1px solid var(--line2)}
 
+/* ===== PRONOS DU CLUB (tous championnats) ===== */
+.cl-intro{font-size:13px;color:var(--bone-dim);line-height:1.5;margin-bottom:14px}
+.cl-player{border:1px solid var(--line2);border-radius:14px;margin-bottom:12px;overflow:hidden;background:var(--night2)}
+.cl-phead{display:flex;align-items:center;gap:11px;padding:13px 15px;cursor:pointer;background:var(--night);
+  transition:background .15s ease}
+.cl-phead:hover{background:#0d2030}
+.cl-ava{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:'Archivo Black',sans-serif;font-size:16px;color:#08131f;flex-shrink:0}
+.cl-pname{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:18px;color:#fff;flex:1;
+  text-transform:uppercase;letter-spacing:.02em}
+.cl-pcount{font-size:11px;color:var(--bone-dim);font-family:'Barlow Condensed',sans-serif;
+  text-transform:uppercase;letter-spacing:.05em}
+.cl-chev{color:var(--bone-dim);font-size:15px;transition:transform .2s ease}
+.cl-player.open .cl-chev{transform:rotate(90deg)}
+.cl-pbody{max-height:0;overflow:hidden;transition:max-height .35s ease}
+.cl-player.open .cl-pbody{max-height:4000px}
+.cl-pinner{padding:6px 14px 14px}
+.cl-champ{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;color:var(--cyan);
+  text-transform:uppercase;letter-spacing:.06em;margin:14px 0 7px;padding-bottom:4px;
+  border-bottom:1px solid var(--line2)}
+.cl-row{display:flex;gap:9px;padding:7px 0;font-size:13px;line-height:1.4;align-items:flex-start}
+.cl-manche{flex-shrink:0;width:96px;color:var(--bone-dim);font-family:'Barlow Condensed',sans-serif;
+  font-weight:600;font-size:12px;padding-top:1px}
+.cl-pod{flex:1;color:var(--bone)}
+.cl-pod .cl-cat{display:inline-block;font-size:10px;font-weight:700;color:var(--cyan);
+  font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;margin-right:6px;letter-spacing:.03em}
+.cl-pod .cl-5{color:#ffd954}
+.cl-none{color:var(--bone-dim);font-style:italic;font-size:13px;padding:8px 2px}
+.cl-empty{text-align:center;color:var(--bone-dim);padding:30px 16px;line-height:1.6}
+
 /* ===== CHAT DU CLUB ===== */
 #chatFab{position:fixed;right:18px;bottom:18px;z-index:900;width:60px;height:60px;border-radius:50%;
   border:none;cursor:pointer;background:linear-gradient(180deg,var(--cyan),var(--cyan-deep));
@@ -1108,6 +1138,7 @@ async function renderHome(session){
     <nav class="nav" id="nav">
       <button class="nav-btn active" data-view="pronos">Pronos</button>
       <button class="nav-btn" data-view="mespronos">Mes pronos</button>
+      <button class="nav-btn" data-view="cluball">Pronos du club</button>
       <button class="nav-btn" data-view="classement">Classement</button>
       <button class="nav-btn" data-view="regles">Règles</button>
       ${isAdmin ? '<button class="nav-btn" data-view="admin">Admin</button>' : ''}
@@ -1298,6 +1329,7 @@ function switchView(view){
   if(view === 'classement'){ return renderClassementTab(v); }
   if(view === 'regles'){ return renderRegles(v); }
   if(view === 'mespronos'){ return renderMesPronos(v); }
+  if(view === 'cluball'){ return renderClubAll(v); }
   return renderPronos(v);
 }
 
@@ -2291,6 +2323,125 @@ async function openMancheProno(mancheId, manche){
     if(delBtn) delBtn.onclick = ()=>deleteMancheProno(mancheId, manche);
     startCountdowns();
   }
+}
+
+// ====== VUE PRONOS DU CLUB (tous championnats, groupé par joueur) ======
+async function renderClubAll(v){
+  v.innerHTML = `<div class="card"><div class="loading">Chargement des pronos du club…</div></div>`;
+
+  const [profilsR, pilotesR, manchesR, pronosR] = await Promise.all([
+    sb.from('profils').select('id,pseudo'),
+    sb.from('pilotes').select('id,nom,numero,championnat'),
+    sb.from('manches').select('*'),
+    sb.from('pronos').select('*')
+  ]);
+  const profils = profilsR.data || [];
+  const pilotes = pilotesR.data || [];
+  const manches = manchesR.data || [];
+  const pronos  = pronosR.data || [];
+
+  // maps
+  const pidName = {};
+  pilotes.forEach(p=>{
+    pidName[p.id] = (p.championnat==='MXdN') ? p.nom : `${p.nom}${p.numero?` #${p.numero}`:''}`;
+  });
+  const mById = {};
+  manches.forEach(m=> mById[m.id]=m);
+
+  // ne garder que les pronos de manches FERMÉES
+  const closedPronos = pronos.filter(pr=>{
+    const m = mById[pr.manche_id];
+    return m && isClosed(m);
+  });
+
+  // grouper par joueur -> championnat -> manche(ordre) -> [pronos par cat]
+  const byUser = {};
+  closedPronos.forEach(pr=>{
+    const m = mById[pr.manche_id];
+    (byUser[pr.user_id] = byUser[pr.user_id] || {});
+    const champ = m.championnat;
+    (byUser[pr.user_id][champ] = byUser[pr.user_id][champ] || {});
+    const key = m.ordre + '|' + m.nom;
+    (byUser[pr.user_id][champ][key] = byUser[pr.user_id][champ][key] || []).push(pr);
+  });
+
+  // tri des joueurs : ceux qui ont des pronos d'abord, par pseudo
+  const players = profils.slice().sort((a,b)=>{
+    const ca = byUser[a.id] ? 1 : 0, cb = byUser[b.id] ? 1 : 0;
+    if(ca!==cb) return cb-ca;
+    return (a.pseudo||'').localeCompare(b.pseudo||'');
+  });
+
+  const totalRevealed = closedPronos.length;
+  if(totalRevealed===0){
+    v.innerHTML = `<div class="card">
+      <div class="sec-title">👥 Pronos du club</div>
+      <div class="cl-empty">Aucun prono révélé pour le moment.<br>Les mises apparaissent ici dès qu'une manche est <b>fermée</b>, tous championnats confondus. 🐺</div>
+    </div>`;
+    return;
+  }
+
+  const champOrder = ['AMA','MXGP','Vendée','MXdN'];
+
+  const playersHtml = players.map(pl=>{
+    const data = byUser[pl.id];
+    const col = colorFromName(pl.pseudo);
+    if(!data){
+      return `<div class="cl-player" data-uid="${pl.id}">
+        <div class="cl-phead">
+          <span class="cl-ava" style="background:${col}">${(pl.pseudo||"?").trim().charAt(0).toUpperCase()}</span>
+          <span class="cl-pname">${pl.pseudo}</span>
+          <span class="cl-pcount">aucun prono révélé</span>
+          <span class="cl-chev">▸</span>
+        </div>
+        <div class="cl-pbody"><div class="cl-pinner"><div class="cl-none">Ce joueur n'a pas encore de prono sur une manche fermée.</div></div></div>
+      </div>`;
+    }
+    // nombre total de podiums mis
+    let nb = 0;
+    Object.values(data).forEach(champ=> Object.values(champ).forEach(arr=> nb+=arr.length));
+
+    const champsHtml = champOrder.filter(c=>data[c]).map(champ=>{
+      // trier les manches par ordre
+      const keys = Object.keys(data[champ]).sort((a,b)=> parseInt(a)-parseInt(b));
+      const rows = keys.map(k=>{
+        const nom = k.split('|')[1];
+        const arr = data[champ][k];
+        const pods = arr.map(pr=>{
+          const l1=pidName[pr.p1_pilote_id]||'?', l2=pidName[pr.p2_pilote_id]||'?', l3=pidName[pr.p3_pilote_id]||'?';
+          const l5 = pr.joue_bonus5 ? (pidName[pr.p5_pilote_id]||'?') : null;
+          const catTag = (arr.length>1 || champ!=='MXdN') ? `<span class="cl-cat">${pr.categorie}</span>` : '';
+          return `<div>${catTag}🥇 ${l1} · 🥈 ${l2} · 🥉 ${l3}${l5?` · <span class="cl-5">5e ${l5}</span>`:''}</div>`;
+        }).join('');
+        return `<div class="cl-row"><span class="cl-manche">${nom}</span><span class="cl-pod">${pods}</span></div>`;
+      }).join('');
+      return `<div class="cl-champ">${CHAMP_LABELS[champ]||champ}</div>${rows}`;
+    }).join('');
+
+    return `<div class="cl-player" data-uid="${pl.id}">
+      <div class="cl-phead">
+        <span class="cl-ava" style="background:${col}">${(pl.pseudo||"?").trim().charAt(0).toUpperCase()}</span>
+        <span class="cl-pname">${pl.pseudo}</span>
+        <span class="cl-pcount">${nb} podium${nb>1?'s':''}</span>
+        <span class="cl-chev">▸</span>
+      </div>
+      <div class="cl-pbody"><div class="cl-pinner">${champsHtml}</div></div>
+    </div>`;
+  }).join('');
+
+  v.innerHTML = `<div class="card">
+    <div class="sec-title">👥 Pronos du club</div>
+    <div class="cl-intro">Les pronos de tout le monde, tous championnats confondus. Seules les manches <b>fermées</b> sont révélées — touche un joueur pour déplier ses pronos.</div>
+    ${playersHtml}
+  </div>`;
+
+  // accordéon
+  v.querySelectorAll('.cl-phead').forEach(head=>{
+    head.onclick = ()=>{
+      const card = head.closest('.cl-player');
+      card.classList.toggle('open');
+    };
+  });
 }
 
 // Affiche les pronos de tous les joueurs pour une manche fermée
