@@ -203,44 +203,54 @@ header::after{
 
 /* hero accueil */
 .home-loading{text-align:center;color:var(--bone-dim);padding:40px;font-size:14px}
-.home-hero{text-align:center;margin:10px 0 18px;position:relative}
-.home-logo-wrap{position:relative;width:104px;height:104px;margin:0 auto 12px}
-.home-logo{position:absolute;inset:10px;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;font-size:42px;background:var(--night2);
-  box-shadow:0 0 28px rgba(30,167,225,.3);z-index:2}
-.home-logo img{width:100%;height:100%;object-fit:contain;border-radius:50%}
-.home-ring{position:absolute;inset:0;border-radius:50%;
-  background:conic-gradient(from 0deg, var(--cyan), var(--red), var(--cyan));
-  -webkit-mask:radial-gradient(circle, transparent 46px, #000 47px);
-  mask:radial-gradient(circle, transparent 46px, #000 47px);
-  animation:homering 6s linear infinite}
-@keyframes homering{to{transform:rotate(360deg)}}
-.home-club{color:var(--cyan);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;
-  letter-spacing:.16em;font-size:14px;font-weight:700;margin-bottom:6px}
-.home-title{color:#fff;font-family:'Archivo Black',sans-serif;font-size:clamp(26px,7vw,34px);
-  text-transform:uppercase;line-height:1.02;text-shadow:0 2px 14px rgba(0,0,0,.4)}
-.home-checker{height:14px;margin:14px auto 0;max-width:200px;border-radius:3px;
-  background-image:linear-gradient(45deg,var(--line2) 25%,transparent 25%,transparent 75%,var(--line2) 75%),
-    linear-gradient(45deg,var(--line2) 25%,transparent 25%,transparent 75%,var(--line2) 75%);
-  background-size:14px 14px;background-position:0 0,7px 7px;opacity:.5}
+.home-head{text-align:center;margin:6px 0 18px}
+.home-kicker{color:var(--cyan);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;
+  letter-spacing:.18em;font-size:13px;font-weight:700;margin-bottom:2px}
+.home-name{color:#fff;font-family:'Archivo Black',sans-serif;font-size:clamp(28px,8vw,38px);
+  line-height:1;text-transform:uppercase;text-shadow:0 2px 16px rgba(0,0,0,.4)}
+.home-name span{color:var(--cyan)}
+.home-sub{color:var(--bone-dim);font-size:13px;margin-top:8px;font-family:'Barlow Condensed',sans-serif;
+  text-transform:uppercase;letter-spacing:.04em}
+.home-section-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;color:var(--bone-dim);
+  text-transform:uppercase;letter-spacing:.06em;margin:6px 2px 10px}
 
-/* bandeau prochaine manche */
-.home-next{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;
-  margin-bottom:16px;padding:14px 16px;border-radius:15px;cursor:pointer;text-align:left;
-  background:linear-gradient(120deg, rgba(30,167,225,.14), rgba(226,59,46,.1));
-  border:1px solid rgba(30,167,225,.4);transition:transform .12s ease,border-color .12s ease;
-  animation:fadeUp .4s ease both}
-.home-next:hover{transform:translateY(-2px);border-color:var(--cyan)}
-.home-next .hn-left{display:flex;flex-direction:column;gap:2px;min-width:0}
-.home-next .hn-tag{font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--cyan);
-  text-transform:uppercase;letter-spacing:.06em;font-weight:700}
-.home-next .hn-nom{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:18px;color:#fff;
-  text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.home-next .hn-champ{font-size:11.5px;color:var(--bone-dim);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase}
-.home-next .hn-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
-.home-next .hn-count{font-family:'Archivo Black',sans-serif;font-size:13px;color:#ffd954;white-space:nowrap}
-.home-next .hn-cta{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--cyan);
+/* rappel "ça ferme bientôt" */
+.home-alert{display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:14px;margin-bottom:14px;
+  background:linear-gradient(120deg, rgba(226,59,46,.18), rgba(226,59,46,.06));
+  border:1px solid rgba(226,59,46,.5);animation:fadeUp .4s ease both, alertpulse 2s ease-in-out infinite}
+@keyframes alertpulse{0%,100%{box-shadow:0 0 0 0 rgba(226,59,46,.35)}50%{box-shadow:0 0 0 8px rgba(226,59,46,0)}}
+.home-alert .ha-ico{font-size:24px;flex-shrink:0}
+.home-alert .ha-body{display:flex;flex-direction:column;gap:1px}
+.home-alert .ha-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:#fff;text-transform:uppercase;letter-spacing:.02em}
+.home-alert .ha-sub{font-size:12.5px;color:var(--bone)}
+
+/* encart En bref (résumé) */
+.home-bref{display:block;width:100%;text-align:left;padding:14px 15px;border-radius:15px;margin-bottom:16px;
+  background:var(--night2);border:1px solid var(--line2);cursor:pointer;
+  transition:transform .12s ease,border-color .12s ease;animation:fadeUp .45s ease both}
+.home-bref:hover{transform:translateY(-2px);border-color:var(--cyan)}
+.home-bref .hb-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.home-bref .hb-ico{font-size:17px}
+.home-bref .hb-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:#fff;
+  text-transform:uppercase;letter-spacing:.03em;flex:1}
+.home-bref .hb-more{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--cyan);
   text-transform:uppercase;letter-spacing:.03em;font-weight:700}
+.home-bref .hb-list{display:flex;flex-direction:column;gap:7px}
+.home-bref .hb-item{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.35;color:var(--bone)}
+.home-bref .hb-iico{flex-shrink:0}
+.home-bref .hb-item b{color:#fff;font-weight:700}
+.home-bref .hb-empty{font-size:12.5px;color:var(--bone-dim);font-style:italic}
+
+/* actus dans la page En bref */
+.ac-row{display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+.ac-row:last-child{border-bottom:none}
+.ac-ava{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:'Archivo Black',sans-serif;font-size:14px;color:#08131f;flex-shrink:0}
+.ac-ico{font-size:17px;flex-shrink:0;margin-top:5px}
+.ac-txt{font-size:14px;line-height:1.4;color:var(--bone);padding-top:4px}
+.ac-txt b{color:#fff;font-weight:700}
+.ac-champ{display:inline-block;font-size:10px;color:var(--cyan);font-family:'Barlow Condensed',sans-serif;
+  text-transform:uppercase;letter-spacing:.03em;font-weight:700;margin-left:2px}
 
 /* cartes championnat (accueil) */
 .champ-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px}
@@ -1362,50 +1372,46 @@ function renderShell(){
 async function renderChampPicker(){
   const host = document.getElementById('homeContent');
   host.innerHTML = `<div class="home-loading">Chargement…</div>`;
-  // charger manches (compter + trouver la prochaine à pronostiquer)
-  let counts = {}, manches = [];
+  let counts={}, manches=[];
   try{
     const { data } = await sb.from('manches').select('id,championnat,nom,closes_at,annulee,ordre');
-    manches = (data||[]).filter(m=>!m.annulee);
+    manches=(data||[]).filter(m=>!m.annulee);
     manches.forEach(m=> counts[m.championnat]=(counts[m.championnat]||0)+1);
   }catch(e){}
   const metaFor = c => c==='MXdN' ? '1 épreuve' : `${counts[c]||0} manche${(counts[c]||0)>1?'s':''}`;
 
-  // prochaine manche à pronostiquer (closes_at dans le futur, la plus proche)
-  const now = Date.now();
-  const upcoming = manches
-    .filter(m=> m.closes_at && new Date(m.closes_at).getTime()>now)
+  // rappel : manches qui ferment dans moins de 12h
+  const now=Date.now(), H12=12*3600*1000;
+  const soon = manches
+    .filter(m=> m.closes_at && (new Date(m.closes_at).getTime()-now)>0 && (new Date(m.closes_at).getTime()-now)<=H12)
     .sort((a,b)=> new Date(a.closes_at)-new Date(b.closes_at));
-  const next = upcoming[0] || null;
-
-  let nextBanner = '';
-  if(next){
-    const champLbl = CHAMP_LABELS[next.championnat]||next.championnat;
-    nextBanner = `
-      <button class="home-next" data-champ="${next.championnat}">
-        <div class="hn-left">
-          <span class="hn-tag">⏱ Prochaine manche</span>
-          <span class="hn-nom">${next.nom}</span>
-          <span class="hn-champ">${champLbl}</span>
-        </div>
-        <div class="hn-right">
-          <span class="hn-count" data-closes="${next.closes_at}">${countdownText(next.closes_at)}</span>
-          <span class="hn-cta">Pronostiquer →</span>
-        </div>
-      </button>`;
+  let alertHtml='';
+  if(soon.length){
+    const champs=[...new Set(soon.map(m=>CHAMP_LABELS[m.championnat]||m.championnat))];
+    alertHtml = `<div class="home-alert">
+      <span class="ha-ico">⚠️</span>
+      <div class="ha-body">
+        <span class="ha-title">Ça ferme bientôt !</span>
+        <span class="ha-sub">${soon.length} manche${soon.length>1?'s':''} ferme${soon.length>1?'nt':''} dans moins de 12h · ${champs.join(', ')}</span>
+      </div>
+    </div>`;
   }
 
+  // En bref : résumé (2 actus max)
+  let brefHtml = `<button class="home-bref" data-act="enbref">
+      <div class="hb-head"><span class="hb-ico">📰</span><span class="hb-title">En bref</span><span class="hb-more">Tout voir →</span></div>
+      <div class="hb-list" id="hbList"><div class="hb-empty">Chargement…</div></div>
+    </button>`;
+
   host.innerHTML = `
-    <div class="home-hero">
-      <div class="home-logo-wrap">
-        <div class="home-logo">🐺</div>
-        <div class="home-ring"></div>
-      </div>
-      <div class="home-club">MC Les Morfalous</div>
-      <div class="home-title">CHOISIS TON<br>CHAMPIONNAT</div>
-      <div class="home-checker"></div>
+    <div class="home-head">
+      <div class="home-kicker">Bienvenue sur</div>
+      <div class="home-name">PRONOS <span>MOTOCROSS</span></div>
+      <div class="home-sub">Le jeu de pronostics du MC Les Morfalous</div>
     </div>
-    ${nextBanner}
+    ${alertHtml}
+    ${brefHtml}
+    <div class="home-section-lbl">Choisis ton championnat</div>
     <div class="champ-cards">
       ${CHAMPS.map((c,i)=>`
         <button class="champ-card" data-champ="${c}" style="animation-delay:${i*0.07}s">
@@ -1416,14 +1422,22 @@ async function renderChampPicker(){
     </div>
   `;
   const enter = (champ)=>{
-    currentChamp = champ;
-    PILOTES = {}; CHAMP_CLOSES_LOADED_FOR = null;
-    inChampScreen = true; currentView = 'pronos';
-    renderShell(); checkAlerts();
+    currentChamp=champ; PILOTES={}; CHAMP_CLOSES_LOADED_FOR=null;
+    inChampScreen=true; currentView='pronos'; renderShell(); checkAlerts();
   };
   host.querySelectorAll('.champ-card').forEach(b=> b.onclick = ()=> enter(b.dataset.champ));
-  const nb = host.querySelector('.home-next');
-  if(nb) nb.onclick = ()=> enter(nb.dataset.champ);
+  const brefBtn = host.querySelector('.home-bref');
+  if(brefBtn) brefBtn.onclick = ()=> openGlobalView('enbref');
+
+  // remplir le résumé En bref
+  computeActus().then(actus=>{
+    const list=document.getElementById('hbList'); if(!list) return;
+    if(!actus.length){ list.innerHTML=`<div class="hb-empty">Pas encore d'actu — reviens après les prochains résultats !</div>`; return; }
+    list.innerHTML = actus.slice(0,2).map(a=>{
+      const t=actuText(a);
+      return `<div class="hb-item"><span class="hb-iico">${t.ico}</span><span class="hb-itxt">${t.html}</span></div>`;
+    }).join('');
+  });
 }
 
 // ----- DANS UN CHAMPIONNAT : switch rapide + menu + vue -----
@@ -1473,6 +1487,7 @@ function openMenu(){
         <button class="menu-close" id="menuClose">×</button>
       </div>
       <button class="menu-item" data-act="messtats"><span class="mi-ico">📊</span> Mes stats</button>
+      <button class="menu-item" data-act="enbref"><span class="mi-ico">📰</span> En bref</button>
       <button class="menu-item" data-act="cluball"><span class="mi-ico">👥</span> Le club</button>
       <button class="menu-item" data-act="chat"><span class="mi-ico">💬</span> Chat du club</button>
       <button class="menu-item" data-act="regles"><span class="mi-ico">📖</span> Règlement</button>
@@ -1841,6 +1856,97 @@ function confirmDeleteAccount(profilOverlay){
   };
 }
 
+// ====== EN BREF (actus du club générées) ======
+let _actusCache = null;
+
+// charge les données et génère la liste d'actus (faits marquants)
+async function computeActus(){
+  const [pilotesR, manchesR, pronosR, resultatsR, profilsR] = await Promise.all([
+    sb.from('pilotes').select('id,nom,numero,championnat'),
+    sb.from('manches').select('id,championnat,annulee,ordre,nom,closes_at'),
+    sb.from('pronos').select('*'),
+    sb.from('resultats').select('*'),
+    sb.from('profils').select('id,pseudo,avatar')
+  ]);
+  const pilotes=pilotesR.data||[], manches=manchesR.data||[], pronos=pronosR.data||[],
+        resultats=resultatsR.data||[], profils=profilsR.data||[];
+  profils.forEach(p=>{ if(p.avatar) AVATARS[p.id]=p.avatar; });
+  const pseudoById={}; profils.forEach(p=> pseudoById[p.id]=p.pseudo||'Joueur');
+  const mById={}; manches.forEach(m=> mById[m.id]=m);
+  const validM=new Set(manches.filter(m=>!m.annulee).map(m=>m.id));
+  const resByKey={}; resultats.forEach(r=>{ if(validM.has(r.manche_id)) resByKey[r.manche_id+'-'+r.categorie]=r; });
+
+  // manches fermées AVEC résultat, triées de la plus récente à la plus ancienne (par ordre desc + champ)
+  const closedWithRes = manches
+    .filter(m=>!m.annulee && resultats.some(r=>r.manche_id===m.id))
+    .sort((a,b)=> (b.ordre-a.ordre));
+
+  const actus=[];
+
+  // pour chaque manche récente (on se limite aux 2 plus récentes pour rester "actu")
+  closedWithRes.slice(0,2).forEach(m=>{
+    const champLbl=CHAMP_LABELS[m.championnat]||m.championnat;
+    // scores de tous les joueurs sur cette manche (cumul catégories)
+    const perUser={};
+    pronos.filter(pr=> pr.manche_id===m.id).forEach(pr=>{
+      const res=resByKey[pr.manche_id+'-'+pr.categorie]; if(!res) return;
+      const bd=scoreBreakdown(pr,res); if(!bd) return;
+      perUser[pr.user_id]=(perUser[pr.user_id]||0)+bd.total;
+      // bonus 5e réussi / raté
+      if(bd.double5) actus.push({type:'cinq_ok', uid:pr.user_id, manche:m.nom, champ:champLbl, cat:pr.categorie, ordre:m.ordre});
+      else if(bd.malus5) actus.push({type:'cinq_ko', uid:pr.user_id, manche:m.nom, champ:champLbl, cat:pr.categorie, ordre:m.ordre});
+      // podium parfait
+      if(bd.parfait) actus.push({type:'parfait', uid:pr.user_id, manche:m.nom, champ:champLbl, cat:pr.categorie, ordre:m.ordre});
+    });
+    // meilleur score de la manche
+    const best=Object.entries(perUser).sort((a,b)=>b[1]-a[1])[0];
+    if(best && best[1]>0){
+      actus.push({type:'top_score', uid:best[0], pts:best[1], manche:m.nom, champ:champLbl, ordre:m.ordre});
+    }
+  });
+
+  // attacher pseudo
+  actus.forEach(a=> a.pseudo = pseudoById[a.uid]||'Joueur');
+  // ordre : manche la plus récente d'abord, puis priorité parfait > 5e > top score
+  const prio={parfait:0, cinq_ok:1, cinq_ko:2, top_score:3};
+  actus.sort((a,b)=> (b.ordre-a.ordre) || (prio[a.type]-prio[b.type]));
+  _actusCache = actus;
+  return actus;
+}
+
+// transforme une actu en texte + icône
+function actuText(a){
+  switch(a.type){
+    case 'top_score': return {ico:'🔥', html:`<b>${a.pseudo}</b> a marqué <b>${a.pts} pts</b> sur ${a.manche} <span class="ac-champ">${a.champ}</span>`};
+    case 'parfait':   return {ico:'🎯', html:`<b>${a.pseudo}</b> a réussi un <b>podium parfait</b> (${a.cat}) sur ${a.manche} <span class="ac-champ">${a.champ}</span>`};
+    case 'cinq_ok':   return {ico:'⭐', html:`<b>${a.pseudo}</b> a <b>doublé ses points</b> avec la 5e place (${a.cat}) sur ${a.manche} <span class="ac-champ">${a.champ}</span>`};
+    case 'cinq_ko':   return {ico:'💔', html:`<b>${a.pseudo}</b> a tenté la 5e place (${a.cat}) et perdu 5 pts sur ${a.manche} <span class="ac-champ">${a.champ}</span>`};
+    default: return {ico:'•', html:''};
+  }
+}
+
+async function renderEnBref(v){
+  v.innerHTML = `<div class="card"><div class="loading">Chargement des actus…</div></div>`;
+  const actus = await computeActus();
+  if(!actus.length){
+    v.innerHTML = `<div class="card">
+      <div class="sec-title">📰 En bref</div>
+      <div class="cl-empty">Pas encore d'actu.<br>Les faits marquants apparaîtront ici dès les premiers résultats. 🐺</div>
+    </div>`;
+    return;
+  }
+  const rows = actus.map(a=>{
+    const t=actuText(a);
+    const av = `<span class="ac-ava" style="background:${avatarBg(a.uid,a.pseudo)}">${avatarInner(a.uid,a.pseudo)}</span>`;
+    return `<div class="ac-row">${av}<span class="ac-ico">${t.ico}</span><span class="ac-txt">${t.html}</span></div>`;
+  }).join('');
+  v.innerHTML = `<div class="card">
+    <div class="sec-title">📰 En bref</div>
+    <p class="sec-sub">Les derniers faits marquants du club.</p>
+    ${rows}
+  </div>`;
+}
+
 function switchView(view){
   const v = document.getElementById('view');
   if(view === 'admin'){ return renderAdmin(v); }
@@ -1849,6 +1955,7 @@ function switchView(view){
   if(view === 'mespronos'){ return renderMesPronos(v); }
   if(view === 'cluball'){ return renderClubAll(v); }
   if(view === 'messtats'){ return renderMesStats(v); }
+  if(view === 'enbref'){ return renderEnBref(v); }
   return renderPronos(v);
 }
 
