@@ -198,6 +198,8 @@ header::after{
   background:var(--night2);color:var(--cyan);font-size:20px;cursor:pointer;
   display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .burger-btn:hover{border-color:var(--cyan)}
+.hello-big{font-size:22px}
+.hello-big b{font-size:24px}
 
 /* hero accueil */
 .home-hero{text-align:center;margin:8px 0 20px}
@@ -253,6 +255,27 @@ header::after{
 .menu-item:hover{background:var(--night)}
 .menu-item .mi-ico{font-size:18px;width:24px;text-align:center}
 .menu-item.danger{color:#ff6b5e;margin-top:auto;border-bottom:none;border-top:1px solid var(--line2)}
+
+/* stats perso dans le modal profil */
+.pf-stats-wrap{margin:6px 0 4px}
+.pf-stats-loading{color:var(--bone-dim);font-size:13px;text-align:center;padding:14px;font-style:italic}
+.pf-stats-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;color:var(--cyan);
+  text-transform:uppercase;letter-spacing:.05em;margin:6px 0 10px}
+.pf-stats-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px}
+.pf-stat{background:var(--night);border:1px solid var(--line2);border-radius:11px;padding:10px 6px;text-align:center}
+.pf-stat.hl{border-color:rgba(30,167,225,.5);background:rgba(30,167,225,.07)}
+.pf-stat .pfv{font-family:'Archivo Black',sans-serif;font-size:18px;color:#fff;line-height:1.1;font-variant-numeric:tabular-nums}
+.pf-stat .pfv-gold{color:#ffd954}
+.pf-stat .pfl{font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--bone-dim);
+  text-transform:uppercase;letter-spacing:.03em;margin-top:3px;line-height:1.2}
+.pf-stat-row{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:9px 11px;background:var(--night);border:1px solid var(--line2);border-radius:11px;margin-bottom:8px}
+.pf-stat-row .pfl{font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--bone-dim);
+  text-transform:uppercase;letter-spacing:.03em}
+.pf-rowval{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:var(--green);
+  text-align:right;display:flex;flex-direction:column;line-height:1.2}
+.pf-rowval small{font-weight:400;font-size:10.5px;color:var(--bone-dim);text-transform:none;letter-spacing:0}
+.pf-rowval.pf-pilote{color:#ffd954;font-size:15px}
 
 /* sections */
 .sec-title{font-family:'Archivo Black',sans-serif;font-size:18px;text-transform:uppercase;
@@ -1248,7 +1271,7 @@ function renderShell(){
       <div class="topbar-user">
         ${inChampScreen
           ? `<button class="hello hello-btn" id="backHome">← <b>${CHAMP_LABELS[currentChamp]||''}</b></button>`
-          : `<button class="hello hello-btn" id="openProfil">Salut <b>${profil?.pseudo || ''}</b> <span class="edit-ico">✎</span></button>`}
+          : `<button class="hello hello-btn hello-big" id="openProfil">Salut <b>${profil?.pseudo || ''}</b> <span class="edit-ico">✎</span></button>`}
         ${isAdmin && !inChampScreen ? '<span class="badge-admin">★ Admin</span>' : ''}
       </div>
       <button class="burger-btn" id="burgerBtn" aria-label="Menu">☰</button>
@@ -1280,8 +1303,6 @@ async function renderChampPicker(){
   const metaFor = c => c==='MXdN' ? '1 épreuve' : `${counts[c]||0} manche${(counts[c]||0)>1?'s':''}`;
   host.innerHTML = `
     <div class="home-hero">
-      <div class="home-logo">🐺</div>
-      <div class="home-club">MC Les Morfalous</div>
       <div class="home-title">CHOISIS TON CHAMPIONNAT</div>
     </div>
     <div class="champ-cards">
@@ -1464,7 +1485,7 @@ async function goToManche(mancheId, champ){
 }
 
 // ====== MON PROFIL (changer pseudo) ======
-function openProfil(profil){
+async function openProfil(profil){
   const ov = document.createElement('div');
   ov.className = 'overlay';
   ov.innerHTML = `
@@ -1479,6 +1500,7 @@ function openProfil(profil){
         <div><span class="pf-lab">Prénom</span> ${profil?.prenom||'—'}</div>
         <div><span class="pf-lab">Nom</span> ${profil?.nom||'—'}</div>
       </div>
+      <div id="pfStats" class="pf-stats-wrap"><div class="pf-stats-loading">Chargement de tes stats…</div></div>
       <div class="msg" id="pfMsg"></div>
       <div class="modal-actions">
         <button class="btn-ghost" id="pfCancel">Fermer</button>
@@ -1489,6 +1511,7 @@ function openProfil(profil){
   document.body.appendChild(ov);
   document.getElementById('pfCancel').onclick = ()=> ov.remove();
   document.getElementById('pfDelete').onclick = ()=> confirmDeleteAccount(ov);
+  loadProfilStats();
   document.getElementById('pfSave').onclick = async ()=>{
     const nouveau = document.getElementById('pfPseudo').value.trim();
     const m = document.getElementById('pfMsg');
@@ -1504,6 +1527,86 @@ function openProfil(profil){
     currentProfil = currentProfil || {}; currentProfil.pseudo = nouveau;
     setTimeout(()=>{ ov.remove(); renderHome(currentSession); }, 1000);
   };
+}
+
+// calcule et affiche les stats perso (tous championnats) dans le modal profil
+async function loadProfilStats(){
+  const box = document.getElementById('pfStats');
+  if(!box || !currentSession) return;
+  const uid = currentSession.user.id;
+  try {
+    const [pilotesR, manchesR, pronosR, resultatsR, profilsR] = await Promise.all([
+      sb.from('pilotes').select('id,nom,numero,championnat'),
+      sb.from('manches').select('id,championnat,annulee,ordre,nom'),
+      sb.from('pronos').select('*'),
+      sb.from('resultats').select('*'),
+      sb.from('profils').select('id')
+    ]);
+    const pilotes=pilotesR.data||[], manches=manchesR.data||[], pronos=pronosR.data||[],
+          resultats=resultatsR.data||[], profils=profilsR.data||[];
+    const mById={}; manches.forEach(m=> mById[m.id]=m);
+    const validM = new Set(manches.filter(m=>!m.annulee).map(m=>m.id));
+    const resByKey={}; resultats.forEach(r=>{ if(validM.has(r.manche_id)) resByKey[r.manche_id+'-'+r.categorie]=r; });
+    const pidName={}; pilotes.forEach(p=> pidName[p.id]=(p.championnat==='MXdN')?p.nom:`${p.nom}${p.numero?` #${p.numero}`:''}`);
+
+    // mes pronos notés
+    const mine = pronos.filter(pr=> pr.user_id===uid && validM.has(pr.manche_id));
+    let totalPts=0, nbScored=0, nbPlayed=mine.length, parfaits=0, cinqTrouves=0;
+    let best={pts:-Infinity, manche:null};
+    const ptsByPilote={};
+    const perManche={};
+    mine.forEach(pr=>{
+      const res=resByKey[pr.manche_id+'-'+pr.categorie];
+      if(!res) return;
+      const bd=scoreBreakdown(pr,res); if(!bd) return;
+      totalPts+=bd.total; nbScored++;
+      if(bd.parfait) parfaits++;
+      if(bd.double5) cinqTrouves++;
+      const m=mById[pr.manche_id];
+      const key=pr.manche_id;
+      perManche[key]=perManche[key]||{pts:0, nom:m?m.nom:'?', champ:m?m.championnat:''};
+      perManche[key].pts+=bd.total;
+      if(bd.total>0){
+        [pr.p1_pilote_id,pr.p2_pilote_id,pr.p3_pilote_id].forEach(id=>{
+          if(id && [res.p1_pilote_id,res.p2_pilote_id,res.p3_pilote_id].includes(id))
+            ptsByPilote[id]=(ptsByPilote[id]||0)+bd.total/3;
+        });
+      }
+    });
+    Object.values(perManche).forEach(pm=>{ if(pm.pts>best.pts) best={pts:pm.pts, manche:pm}; });
+
+    const moyenne = nbScored>0 ? (totalPts/nbScored).toFixed(1) : '—';
+    const pbEntries=Object.entries(ptsByPilote).sort((a,b)=>b[1]-a[1]);
+    const porteBonheur = pbEntries.length ? (pidName[pbEntries[0][0]]||'—') : '—';
+
+    // place au classement général (tous championnats cumulés, pronos de manche)
+    const totals={}; profils.forEach(p=>totals[p.id]=0);
+    pronos.forEach(pr=>{ const res=resByKey[pr.manche_id+'-'+pr.categorie];
+      if(res && totals[pr.user_id]!==undefined) totals[pr.user_id]+=scoreManche(pr,res); });
+    const sorted=Object.entries(totals).sort((a,b)=>b[1]-a[1]);
+    const maPlace=sorted.findIndex(e=>e[0]===uid)+1;
+    const placeStr=(maPlace>0 && resultats.length>0)?`${maPlace}${maPlace===1?'er':'e'} / ${sorted.length}`:'—';
+    const myTotal = totals[uid]||0;
+
+    const bestStr = (best.manche) ? `${best.pts>0?'+':''}${best.pts} pts` : '—';
+    const bestSub = (best.manche) ? `${best.manche.nom} · ${CHAMP_LABELS[best.manche.champ]||best.manche.champ}` : 'aucune manche notée';
+
+    box.innerHTML = `
+      <div class="pf-stats-title">📊 Mes stats</div>
+      <div class="pf-stats-grid">
+        <div class="pf-stat hl"><div class="pfv">${placeStr}</div><div class="pfl">Classement général</div></div>
+        <div class="pf-stat"><div class="pfv">${myTotal}</div><div class="pfl">Points cumulés</div></div>
+        <div class="pf-stat"><div class="pfv">${moyenne}</div><div class="pfl">Moy. / manche</div></div>
+        <div class="pf-stat"><div class="pfv">${nbPlayed}</div><div class="pfl">Pronos joués</div></div>
+        <div class="pf-stat"><div class="pfv pfv-gold">${parfaits}</div><div class="pfl">Podiums parfaits</div></div>
+        <div class="pf-stat"><div class="pfv pfv-gold">${cinqTrouves}</div><div class="pfl">5e trouvées</div></div>
+      </div>
+      <div class="pf-stat-row"><span class="pfl">🏆 Meilleure manche</span><span class="pf-rowval">${bestStr}<small>${bestSub}</small></span></div>
+      <div class="pf-stat-row"><span class="pfl">🍀 Pilote porte-bonheur</span><span class="pf-rowval pf-pilote">${porteBonheur}</span></div>
+    `;
+  } catch(e){
+    box.innerHTML = `<div class="pf-stats-loading">Stats indisponibles pour le moment.</div>`;
+  }
 }
 
 // suppression du compte : efface les données du joueur puis déconnecte
