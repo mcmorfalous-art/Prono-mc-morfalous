@@ -843,6 +843,8 @@ header::after{
 .cmsg.mine .cm-bubble{background:linear-gradient(180deg,var(--cyan),var(--cyan-deep));color:#fff;border:none}
 .cmsg.mine .cm-del{background:none;border:none;color:rgba(255,255,255,.5);font-size:10px;cursor:pointer;
   font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.04em;padding:1px 0 0}
+.cm-receipt{font-size:10px;color:var(--bone-dim);font-family:'Barlow Condensed',sans-serif;
+  text-transform:uppercase;letter-spacing:.04em;margin-top:3px;align-self:flex-end}
 .cmsg .cm-reply{background:none;border:none;color:var(--bone-dim);font-size:10px;cursor:pointer;
   font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.04em;padding:1px 0 0;
   opacity:0;transition:opacity .15s ease}
@@ -3341,6 +3343,8 @@ let chatUnread = 0;
 let chatSeenIds = new Set();
 let chatLastMsgId = 0;          // id du message le plus récent affiché
 let chatMembers = [];          // pseudos pour l'autocomplétion des mentions
+let chatReads = {};            // user_id -> last_read_id (accusés de lecture des autres)
+let chatTotalMembers = 0;      // nb total de joueurs (pour "vu par tous")
 
 function chatLastReadKey(){
   const uid = currentSession ? currentSession.user.id : 'anon';
@@ -3351,6 +3355,13 @@ function getChatLastRead(){
 }
 function setChatLastRead(id){
   try { localStorage.setItem(chatLastReadKey(), String(id)); } catch(e){}
+  // enregistre aussi en base pour les accusés de lecture des autres
+  if(currentSession && id>0){
+    const uid = currentSession.user.id;
+    chatReads[uid] = Math.max(chatReads[uid]||0, id);
+    sb.from('chat_reads').upsert({ user_id: uid, last_read_id: chatReads[uid], updated_at: new Date().toISOString() }, { onConflict:'user_id' })
+      .then(()=>{}, ()=>{});
+  }
 }
 function myPseudo(){
   return (currentProfil && currentProfil.pseudo) || 'Joueur';
@@ -3450,6 +3461,38 @@ function initChat(){
 async function loadChatMembers(){
   const { data } = await sb.from('profils').select('pseudo');
   chatMembers = (data||[]).map(p=>p.pseudo).filter(Boolean);
+  chatTotalMembers = chatMembers.length;
+  // charger les accusés de lecture
+  const { data: reads } = await sb.from('chat_reads').select('user_id,last_read_id');
+  chatReads = {};
+  (reads||[]).forEach(r=> chatReads[r.user_id]=r.last_read_id);
+}
+
+// calcule "Vu par X" pour mon dernier message envoyé
+function updateReadReceipt(){
+  const body=document.getElementById('chatBody');
+  if(!body || !currentSession) return;
+  const myUid=currentSession.user.id;
+  // retire l'ancien reçu
+  const old=body.querySelector('.cm-receipt'); if(old) old.remove();
+  // trouve mon dernier message (le plus bas)
+  const mineEls=[...body.querySelectorAll('.cmsg.mine')];
+  if(!mineEls.length) return;
+  const lastMine=mineEls[mineEls.length-1];
+  const lastMineId=parseInt(lastMine.dataset.id);
+  if(!lastMineId) return;
+  // compte les AUTRES qui ont lu jusqu'à ce message
+  let n=0;
+  Object.entries(chatReads).forEach(([uid,rid])=>{
+    if(uid!==myUid && rid>=lastMineId) n++;
+  });
+  if(n>0){
+    const r=document.createElement('div');
+    r.className='cm-receipt';
+    const others=chatTotalMembers-1;
+    r.textContent = (others>0 && n>=others) ? '👁 Vu par tous' : `👁 Vu par ${n}`;
+    lastMine.appendChild(r);
+  }
 }
 
 // ----- autocomplétion des mentions -----
@@ -3507,6 +3550,7 @@ async function loadChatMessages(){
   // s'il y a une mention de moi non lue, faire pulser
   if(msgs.some(m=> m.id>lastRead && mentionsMe(m.contenu) && !(currentSession && m.user_id===currentSession.user.id)))
     pulseChatFab();
+  updateReadReceipt();
   body.scrollTop = body.scrollHeight;
 }
 
@@ -3574,6 +3618,7 @@ function subscribeChat(){
           chatUnread++; updateChatBadge();
           if(mentionsMe(m.contenu)) pulseChatFab();
         }
+        updateReadReceipt();
       })
     .on('postgres_changes',
       { event:'DELETE', schema:'public', table:'chat_messages' },
@@ -3581,6 +3626,13 @@ function subscribeChat(){
         const body=document.getElementById('chatBody'); if(!body) return;
         const el=body.querySelector(`.cmsg[data-id="${payload.old.id}"]`);
         if(el) el.remove();
+        updateReadReceipt();
+      })
+    .on('postgres_changes',
+      { event:'*', schema:'public', table:'chat_reads' },
+      payload=>{
+        const r=payload.new || payload.old;
+        if(r && r.user_id){ chatReads[r.user_id]=r.last_read_id; updateReadReceipt(); }
       })
     .subscribe();
 }
@@ -3634,7 +3686,7 @@ function teardownChat(){
   if(chatChannel){ try{ sb.removeChannel(chatChannel); }catch(e){} chatChannel=null; }
   ['chatFab','chatPanel'].forEach(id=>{ const el=document.getElementById(id); if(el) el.remove(); });
   chatInited=false; chatOpen=false; chatUnread=0; chatSeenIds=new Set();
-  chatLastMsgId=0; chatMembers=[];
+  chatLastMsgId=0; chatMembers=[]; chatReads={}; chatTotalMembers=0;
 }
 
 // ====== DÉMARRAGE ======
