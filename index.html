@@ -277,6 +277,34 @@ header::after{
 .pf-rowval small{font-weight:400;font-size:10.5px;color:var(--bone-dim);text-transform:none;letter-spacing:0}
 .pf-rowval.pf-pilote{color:#ffd954;font-size:15px}
 
+/* comparateur de stats */
+.cmp-select{width:100%;padding:12px 13px;border-radius:11px;background:var(--night);
+  border:1px solid var(--line2);color:var(--bone);font-size:15px;font-family:inherit;margin-bottom:12px}
+.cmp-select:focus{outline:none;border-color:var(--cyan)}
+.cmp-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;
+  padding-bottom:8px;border-bottom:1px solid var(--line2)}
+.cmp-head .cmp-name{flex:1;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;
+  color:#fff;text-transform:uppercase;letter-spacing:.02em;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmp-head .cmp-vs{font-family:'Archivo Black',sans-serif;font-size:13px;color:var(--cyan);flex-shrink:0}
+.cmp-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line)}
+.cmp-row:last-child{border-bottom:none}
+.cmp-a,.cmp-b{flex:1;text-align:center;font-family:'Archivo Black',sans-serif;font-size:18px;
+  color:var(--bone-dim);font-variant-numeric:tabular-nums}
+.cmp-lbl{flex:1.4;text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:12px;
+  color:var(--bone-dim);text-transform:uppercase;letter-spacing:.03em}
+.cmp-win{color:var(--green)!important}
+
+/* avatars thème moto */
+.av-emoji{font-size:1.05em;line-height:1}
+.avatar-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:4px}
+.avatar-opt{aspect-ratio:1;border:1.5px solid var(--line2);border-radius:10px;background:var(--night);
+  font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;
+  transition:transform .1s ease,border-color .1s ease}
+.avatar-opt:hover{border-color:var(--cyan)}
+.avatar-opt.sel{border-color:var(--cyan);background:rgba(30,167,225,.15);transform:scale(1.05)}
+.cm-avatar{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+  font-size:13px;font-family:'Archivo Black',sans-serif;color:#08131f;flex-shrink:0;margin-right:5px;line-height:1}
+
 /* sections */
 .sec-title{font-family:'Archivo Black',sans-serif;font-size:18px;text-transform:uppercase;
   margin-bottom:6px;color:var(--bone)}
@@ -1373,9 +1401,10 @@ function openMenu(){
         <span>Menu du club</span>
         <button class="menu-close" id="menuClose">×</button>
       </div>
+      <button class="menu-item" data-act="messtats"><span class="mi-ico">📊</span> Mes stats</button>
       <button class="menu-item" data-act="cluball"><span class="mi-ico">👥</span> Le club</button>
-      <button class="menu-item" data-act="regles"><span class="mi-ico">📖</span> Règles</button>
       <button class="menu-item" data-act="chat"><span class="mi-ico">💬</span> Chat du club</button>
+      <button class="menu-item" data-act="regles"><span class="mi-ico">📖</span> Règlement</button>
       <button class="menu-item" data-act="profil"><span class="mi-ico">👤</span> Mon profil</button>
       ${isAdmin ? '<button class="menu-item" data-act="admin"><span class="mi-ico">★</span> Admin</button>' : ''}
       <button class="menu-item danger" data-act="logout"><span class="mi-ico">🚪</span> Déconnexion</button>
@@ -1498,11 +1527,16 @@ async function openProfil(profil){
         <label>Pseudo</label>
         <input id="pfPseudo" type="text" maxlength="30" value="${(profil?.pseudo||'').replace(/"/g,'&quot;')}">
       </div>
+      <div class="field">
+        <label>Mon avatar</label>
+        <div class="avatar-grid" id="avatarGrid">
+          ${MOTO_AVATARS.map(a=>`<button type="button" class="avatar-opt ${profil?.avatar===a?'sel':''}" data-av="${a}">${a}</button>`).join('')}
+        </div>
+      </div>
       <div class="pf-info">
         <div><span class="pf-lab">Prénom</span> ${profil?.prenom||'—'}</div>
         <div><span class="pf-lab">Nom</span> ${profil?.nom||'—'}</div>
       </div>
-      <div id="pfStats" class="pf-stats-wrap"><div class="pf-stats-loading">Chargement de tes stats…</div></div>
       <div class="msg" id="pfMsg"></div>
       <div class="modal-actions">
         <button class="btn-ghost" id="pfCancel">Fermer</button>
@@ -1513,102 +1547,185 @@ async function openProfil(profil){
   document.body.appendChild(ov);
   document.getElementById('pfCancel').onclick = ()=> ov.remove();
   document.getElementById('pfDelete').onclick = ()=> confirmDeleteAccount(ov);
-  loadProfilStats();
+  let selectedAvatar = profil?.avatar || null;
+  ov.querySelectorAll('.avatar-opt').forEach(b=>{
+    b.onclick = ()=>{
+      const av = b.dataset.av;
+      if(selectedAvatar===av){ selectedAvatar=null; b.classList.remove('sel'); return; } // re-clic = désélection
+      selectedAvatar = av;
+      ov.querySelectorAll('.avatar-opt').forEach(x=>x.classList.toggle('sel', x===b));
+    };
+  });
   document.getElementById('pfSave').onclick = async ()=>{
     const nouveau = document.getElementById('pfPseudo').value.trim();
     const m = document.getElementById('pfMsg');
     if(nouveau.length < 2){ m.className='msg show err'; m.textContent="Choisis un pseudo d'au moins 2 caractères."; return; }
-    const { error } = await sb.from('profils').update({ pseudo: nouveau }).eq('id', currentSession.user.id);
+    const { error } = await sb.from('profils').update({ pseudo: nouveau, avatar: selectedAvatar }).eq('id', currentSession.user.id);
     if(error){
       m.className='msg show err';
       m.textContent = (error.message.includes('duplicate')||error.message.includes('unique'))
         ? "Ce pseudo est déjà pris, choisis-en un autre." : error.message;
       return;
     }
-    m.className='msg show ok'; m.textContent="✓ Pseudo mis à jour !";
-    currentProfil = currentProfil || {}; currentProfil.pseudo = nouveau;
+    m.className='msg show ok'; m.textContent="✓ Profil mis à jour !";
+    currentProfil = currentProfil || {}; currentProfil.pseudo = nouveau; currentProfil.avatar = selectedAvatar;
+    if(selectedAvatar) AVATARS[currentSession.user.id]=selectedAvatar; else delete AVATARS[currentSession.user.id];
     setTimeout(()=>{ ov.remove(); renderHome(currentSession); }, 1000);
   };
 }
 
-// calcule et affiche les stats perso (tous championnats) dans le modal profil
-async function loadProfilStats(){
-  const box = document.getElementById('pfStats');
-  if(!box || !currentSession) return;
-  const uid = currentSession.user.id;
-  try {
-    const [pilotesR, manchesR, pronosR, resultatsR, profilsR] = await Promise.all([
-      sb.from('pilotes').select('id,nom,numero,championnat'),
-      sb.from('manches').select('id,championnat,annulee,ordre,nom'),
-      sb.from('pronos').select('*'),
-      sb.from('resultats').select('*'),
-      sb.from('profils').select('id')
-    ]);
-    const pilotes=pilotesR.data||[], manches=manchesR.data||[], pronos=pronosR.data||[],
-          resultats=resultatsR.data||[], profils=profilsR.data||[];
-    const mById={}; manches.forEach(m=> mById[m.id]=m);
-    const validM = new Set(manches.filter(m=>!m.annulee).map(m=>m.id));
-    const resByKey={}; resultats.forEach(r=>{ if(validM.has(r.manche_id)) resByKey[r.manche_id+'-'+r.categorie]=r; });
-    const pidName={}; pilotes.forEach(p=> pidName[p.id]=(p.championnat==='MXdN')?p.nom:`${p.nom}${p.numero?` #${p.numero}`:''}`);
+// ====== VUE MES STATS (avec comparateur) ======
+let _statsData = null; // cache des datasets pour le comparateur
 
-    // mes pronos notés
-    const mine = pronos.filter(pr=> pr.user_id===uid && validM.has(pr.manche_id));
-    let totalPts=0, nbScored=0, nbPlayed=mine.length, parfaits=0, cinqTrouves=0;
-    let best={pts:-Infinity, manche:null};
-    const ptsByPilote={};
-    const perManche={};
-    mine.forEach(pr=>{
-      const res=resByKey[pr.manche_id+'-'+pr.categorie];
-      if(!res) return;
-      const bd=scoreBreakdown(pr,res); if(!bd) return;
-      totalPts+=bd.total; nbScored++;
-      if(bd.parfait) parfaits++;
-      if(bd.double5) cinqTrouves++;
-      const m=mById[pr.manche_id];
-      const key=pr.manche_id;
-      perManche[key]=perManche[key]||{pts:0, nom:m?m.nom:'?', champ:m?m.championnat:''};
-      perManche[key].pts+=bd.total;
-      if(bd.total>0){
-        [pr.p1_pilote_id,pr.p2_pilote_id,pr.p3_pilote_id].forEach(id=>{
-          if(id && [res.p1_pilote_id,res.p2_pilote_id,res.p3_pilote_id].includes(id))
-            ptsByPilote[id]=(ptsByPilote[id]||0)+bd.total/3;
-        });
-      }
-    });
-    Object.values(perManche).forEach(pm=>{ if(pm.pts>best.pts) best={pts:pm.pts, manche:pm}; });
+function computeStatsFor(uid, D){
+  const { mById, validM, resByKey, pidName, pronos, resultats, profils } = D;
+  const mine = pronos.filter(pr=> pr.user_id===uid && validM.has(pr.manche_id));
+  let totalPts=0, nbScored=0, nbPlayed=mine.length, parfaits=0, cinqTrouves=0;
+  let best={pts:-Infinity, manche:null};
+  const ptsByPilote={}, perManche={};
+  mine.forEach(pr=>{
+    const res=resByKey[pr.manche_id+'-'+pr.categorie];
+    if(!res) return;
+    const bd=scoreBreakdown(pr,res); if(!bd) return;
+    totalPts+=bd.total; nbScored++;
+    if(bd.parfait) parfaits++;
+    if(bd.double5) cinqTrouves++;
+    const m=mById[pr.manche_id], key=pr.manche_id;
+    perManche[key]=perManche[key]||{pts:0, nom:m?m.nom:'?', champ:m?m.championnat:''};
+    perManche[key].pts+=bd.total;
+    if(bd.total>0){
+      [pr.p1_pilote_id,pr.p2_pilote_id,pr.p3_pilote_id].forEach(id=>{
+        if(id && [res.p1_pilote_id,res.p2_pilote_id,res.p3_pilote_id].includes(id))
+          ptsByPilote[id]=(ptsByPilote[id]||0)+bd.total/3;
+      });
+    }
+  });
+  Object.values(perManche).forEach(pm=>{ if(pm.pts>best.pts) best={pts:pm.pts, manche:pm}; });
+  const moyenne = nbScored>0 ? (totalPts/nbScored) : null;
+  const pbEntries=Object.entries(ptsByPilote).sort((a,b)=>b[1]-a[1]);
+  const porteBonheur = pbEntries.length ? (pidName[pbEntries[0][0]]||'—') : '—';
+  // place + total cumulé
+  const totals={}; profils.forEach(p=>totals[p.id]=0);
+  pronos.forEach(pr=>{ const res=resByKey[pr.manche_id+'-'+pr.categorie];
+    if(res && totals[pr.user_id]!==undefined) totals[pr.user_id]+=scoreManche(pr,res); });
+  const sorted=Object.entries(totals).sort((a,b)=>b[1]-a[1]);
+  const place=sorted.findIndex(e=>e[0]===uid)+1;
+  return {
+    place, nbJoueurs:sorted.length, total: totals[uid]||0,
+    moyenne, nbPlayed, parfaits, cinqTrouves,
+    best, porteBonheur, hasResults: resultats.length>0
+  };
+}
 
-    const moyenne = nbScored>0 ? (totalPts/nbScored).toFixed(1) : '—';
-    const pbEntries=Object.entries(ptsByPilote).sort((a,b)=>b[1]-a[1]);
-    const porteBonheur = pbEntries.length ? (pidName[pbEntries[0][0]]||'—') : '—';
+async function renderMesStats(v){
+  v.innerHTML = `<div class="card"><div class="loading">Calcul de tes stats…</div></div>`;
+  const myUid = currentSession.user.id;
+  const [pilotesR, manchesR, pronosR, resultatsR, profilsR] = await Promise.all([
+    sb.from('pilotes').select('id,nom,numero,championnat'),
+    sb.from('manches').select('id,championnat,annulee,ordre,nom'),
+    sb.from('pronos').select('*'),
+    sb.from('resultats').select('*'),
+    sb.from('profils').select('id,pseudo,avatar')
+  ]);
+  const pilotes=pilotesR.data||[], manches=manchesR.data||[], pronos=pronosR.data||[],
+        resultats=resultatsR.data||[], profils=profilsR.data||[];
+  const mById={}; manches.forEach(m=> mById[m.id]=m);
+  const validM = new Set(manches.filter(m=>!m.annulee).map(m=>m.id));
+  const resByKey={}; resultats.forEach(r=>{ if(validM.has(r.manche_id)) resByKey[r.manche_id+'-'+r.categorie]=r; });
+  const pidName={}; pilotes.forEach(p=> pidName[p.id]=(p.championnat==='MXdN')?p.nom:`${p.nom}${p.numero?` #${p.numero}`:''}`);
+  _statsData = { mById, validM, resByKey, pidName, pronos, resultats, profils };
 
-    // place au classement général (tous championnats cumulés, pronos de manche)
-    const totals={}; profils.forEach(p=>totals[p.id]=0);
-    pronos.forEach(pr=>{ const res=resByKey[pr.manche_id+'-'+pr.categorie];
-      if(res && totals[pr.user_id]!==undefined) totals[pr.user_id]+=scoreManche(pr,res); });
-    const sorted=Object.entries(totals).sort((a,b)=>b[1]-a[1]);
-    const maPlace=sorted.findIndex(e=>e[0]===uid)+1;
-    const placeStr=(maPlace>0 && resultats.length>0)?`${maPlace}${maPlace===1?'er':'e'} / ${sorted.length}`:'—';
-    const myTotal = totals[uid]||0;
+  const me = computeStatsFor(myUid, _statsData);
+  const myPseudoName = (profils.find(p=>p.id===myUid)||{}).pseudo || 'Moi';
 
-    const bestStr = (best.manche) ? `${best.pts>0?'+':''}${best.pts} pts` : '—';
-    const bestSub = (best.manche) ? `${best.manche.nom} · ${CHAMP_LABELS[best.manche.champ]||best.manche.champ}` : 'aucune manche notée';
+  const placeStr = (me.place>0 && me.hasResults)?`${me.place}${me.place===1?'er':'e'} / ${me.nbJoueurs}`:'—';
+  const moyStr = me.moyenne!=null ? me.moyenne.toFixed(1) : '—';
+  const bestStr = me.best.manche ? `${me.best.pts>0?'+':''}${me.best.pts} pts` : '—';
+  const bestSub = me.best.manche ? `${me.best.manche.nom} · ${CHAMP_LABELS[me.best.manche.champ]||me.best.manche.champ}` : 'aucune manche notée';
 
-    box.innerHTML = `
-      <div class="pf-stats-title">📊 Mes stats</div>
+  // options du sélecteur de comparaison (autres joueurs)
+  const others = profils.filter(p=>p.id!==myUid).sort((a,b)=>(a.pseudo||'').localeCompare(b.pseudo||''));
+  const opts = `<option value="">— Choisis un joueur —</option>`
+    + `<option value="__avg__">⌀ Moyenne du club</option>`
+    + others.map(p=>`<option value="${p.id}">${p.pseudo}</option>`).join('');
+
+  v.innerHTML = `
+    <div class="card">
+      <div class="sec-title">📊 Mes stats</div>
       <div class="pf-stats-grid">
         <div class="pf-stat hl"><div class="pfv">${placeStr}</div><div class="pfl">Classement général</div></div>
-        <div class="pf-stat"><div class="pfv">${myTotal}</div><div class="pfl">Points cumulés</div></div>
-        <div class="pf-stat"><div class="pfv">${moyenne}</div><div class="pfl">Moy. / manche</div></div>
-        <div class="pf-stat"><div class="pfv">${nbPlayed}</div><div class="pfl">Pronos joués</div></div>
-        <div class="pf-stat"><div class="pfv pfv-gold">${parfaits}</div><div class="pfl">Podiums parfaits</div></div>
-        <div class="pf-stat"><div class="pfv pfv-gold">${cinqTrouves}</div><div class="pfl">5e trouvées</div></div>
+        <div class="pf-stat"><div class="pfv">${me.total}</div><div class="pfl">Points cumulés</div></div>
+        <div class="pf-stat"><div class="pfv">${moyStr}</div><div class="pfl">Moy. / manche</div></div>
+        <div class="pf-stat"><div class="pfv">${me.nbPlayed}</div><div class="pfl">Pronos joués</div></div>
+        <div class="pf-stat"><div class="pfv pfv-gold">${me.parfaits}</div><div class="pfl">Podiums parfaits</div></div>
+        <div class="pf-stat"><div class="pfv pfv-gold">${me.cinqTrouves}</div><div class="pfl">5e trouvées</div></div>
       </div>
       <div class="pf-stat-row"><span class="pfl">🏆 Meilleure manche</span><span class="pf-rowval">${bestStr}<small>${bestSub}</small></span></div>
-      <div class="pf-stat-row"><span class="pfl">🍀 Pilote porte-bonheur</span><span class="pf-rowval pf-pilote">${porteBonheur}</span></div>
-    `;
-  } catch(e){
-    box.innerHTML = `<div class="pf-stats-loading">Stats indisponibles pour le moment.</div>`;
-  }
+      <div class="pf-stat-row"><span class="pfl">🍀 Pilote porte-bonheur</span><span class="pf-rowval pf-pilote">${me.porteBonheur}</span></div>
+    </div>
+
+    <div class="card">
+      <div class="sec-title" style="font-size:16px">⚔️ Me comparer</div>
+      <p class="sec-sub">Compare-toi à un autre joueur ou à la moyenne du club.</p>
+      <select id="cmpSelect" class="cmp-select">${opts}</select>
+      <div id="cmpResult"></div>
+    </div>
+  `;
+
+  document.getElementById('cmpSelect').onchange = (e)=>{
+    const val = e.target.value;
+    const box = document.getElementById('cmpResult');
+    if(!val){ box.innerHTML=''; return; }
+    let other, otherName;
+    if(val==='__avg__'){
+      // moyenne du club (tous les autres joueurs)
+      const all = profils.map(p=> computeStatsFor(p.id, _statsData));
+      const avg = (sel)=> { const vals=all.map(sel).filter(x=>x!=null && isFinite(x)); return vals.length? vals.reduce((a,b)=>a+b,0)/vals.length : null; };
+      other = {
+        total: Math.round(avg(s=>s.total)),
+        moyenne: avg(s=>s.moyenne),
+        nbPlayed: Math.round(avg(s=>s.nbPlayed)),
+        parfaits: (avg(s=>s.parfaits)||0),
+        cinqTrouves: (avg(s=>s.cinqTrouves)||0),
+        place:0, best:{manche:null}, porteBonheur:'—'
+      };
+      otherName = 'Moyenne du club';
+    } else {
+      other = computeStatsFor(val, _statsData);
+      otherName = (profils.find(p=>p.id===val)||{}).pseudo || 'Joueur';
+    }
+    box.innerHTML = renderCompare(myPseudoName, me, otherName, other);
+  };
+}
+
+// rend la comparaison côte à côte
+function renderCompare(nameA, A, nameB, B){
+  const fmt = (v,dec=0)=> (v==null||!isFinite(v))?'—':(dec?(+v).toFixed(dec):Math.round(v));
+  const row = (label, a, b, higherBetter=true, dec=0)=>{
+    const av=(a==null||!isFinite(a))?null:+a, bv=(b==null||!isFinite(b))?null:+b;
+    let aCls='', bCls='';
+    if(av!=null && bv!=null && av!==bv){
+      const aWins = higherBetter ? av>bv : av<bv;
+      aCls = aWins?'cmp-win':''; bCls = aWins?'':'cmp-win';
+    }
+    return `<div class="cmp-row">
+      <span class="cmp-a ${aCls}">${fmt(a,dec)}</span>
+      <span class="cmp-lbl">${label}</span>
+      <span class="cmp-b ${bCls}">${fmt(b,dec)}</span>
+    </div>`;
+  };
+  return `
+    <div class="cmp-head">
+      <span class="cmp-name">${nameA}</span>
+      <span class="cmp-vs">VS</span>
+      <span class="cmp-name">${nameB}</span>
+    </div>
+    ${row('Points cumulés', A.total, B.total, true)}
+    ${row('Moy. / manche', A.moyenne, B.moyenne, true, 1)}
+    ${row('Pronos joués', A.nbPlayed, B.nbPlayed, true)}
+    ${row('Podiums parfaits', A.parfaits, B.parfaits, true)}
+    ${row('5e trouvées', A.cinqTrouves, B.cinqTrouves, true)}
+  `;
 }
 
 // suppression du compte : efface les données du joueur puis déconnecte
@@ -1660,6 +1777,7 @@ function switchView(view){
   if(view === 'regles'){ return renderRegles(v); }
   if(view === 'mespronos'){ return renderMesPronos(v); }
   if(view === 'cluball'){ return renderClubAll(v); }
+  if(view === 'messtats'){ return renderMesStats(v); }
   return renderPronos(v);
 }
 
@@ -1675,7 +1793,7 @@ async function renderMesPronos(v){
     sb.from('pronos_championnat').select('*').eq('user_id', uid).eq('championnat', currentChamp),
     sb.from('resultats').select('*'),
     sb.from('pronos').select('*'),
-    sb.from('profils').select('id,pseudo'),
+    sb.from('profils').select('id,pseudo,avatar'),
     sb.from('pronos_championnat').select('*'),
     sb.from('resultat_championnat').select('*'),
   ]);
@@ -1745,6 +1863,7 @@ async function renderMesPronos(v){
 
   const mancheCards = manches
     .filter(m=> byManche[m.id])
+    .slice().reverse()
     .map(m=>{
       const closed = isClosed(m);
       const cats = byManche[m.id].sort((a,b)=> b.categorie.localeCompare(a.categorie));
@@ -2024,7 +2143,7 @@ async function renderClassement(v){
 
   // tout charger
   const [profilsR, pronosR, resultatsR, pchampR, rchampR, manchesR] = await Promise.all([
-    sb.from('profils').select('id,pseudo'),
+    sb.from('profils').select('id,pseudo,avatar'),
     sb.from('pronos').select('*'),
     sb.from('resultats').select('*'),
     sb.from('pronos_championnat').select('*').eq('championnat', currentChamp),
@@ -2032,6 +2151,7 @@ async function renderClassement(v){
     sb.from('manches').select('*').eq('championnat', currentChamp).order('ordre'),
   ]);
   const profils = profilsR.data||[];
+  profils.forEach(p=>{ if(p.avatar) AVATARS[p.id]=p.avatar; });
   const manches = manchesR.data||[];
   const mancheIds = new Set(manches.filter(m=>!m.annulee).map(m=>m.id));
   const pronos = (pronosR.data||[]).filter(pr=> mancheIds.has(pr.manche_id));
@@ -2162,7 +2282,7 @@ function podiumTop3(ranked){
     return `<div class="pod-col p${place}" data-uid="${r.id}">
       <div class="pod-drop">
         ${crown}
-        <div class="pod-ava">${initial(r.pseudo)}</div>
+        <div class="pod-ava">${avatarInner(r.id, r.pseudo)}</div>
         <div class="pod-name">${r.pseudo}</div>
         <div class="pod-pts">${r.total} pts</div>
       </div>
@@ -2660,7 +2780,7 @@ async function renderClubAll(v){
   v.innerHTML = `<div class="card"><div class="loading">Chargement des pronos du club…</div></div>`;
 
   const [profilsR, pilotesR, manchesR, pronosR] = await Promise.all([
-    sb.from('profils').select('id,pseudo'),
+    sb.from('profils').select('id,pseudo,avatar'),
     sb.from('pilotes').select('id,nom,numero,championnat'),
     sb.from('manches').select('*'),
     sb.from('pronos').select('*')
@@ -2707,6 +2827,7 @@ async function renderClubAll(v){
   });
 
   // tri des joueurs : actifs (podiums passés OU intel à venir) d'abord, par pseudo
+  profils.forEach(p=>{ if(p.avatar) AVATARS[p.id]=p.avatar; });
   const isActive = id => !!byUser[id] || !!intelByUser[id];
   const players = profils.slice().sort((a,b)=>{
     const ca = isActive(a.id)?1:0, cb = isActive(b.id)?1:0;
@@ -2740,9 +2861,9 @@ async function renderClubAll(v){
 
   const playersHtml = players.map(pl=>{
     const data = byUser[pl.id];
-    const col = colorFromName(pl.pseudo);
+    const col = avatarBg(pl.id, pl.pseudo);
     const intel = intelBlock(pl.id);
-    const ini = (pl.pseudo||"?").trim().charAt(0).toUpperCase();
+    const ini = avatarInner(pl.id, pl.pseudo);
 
     if(!data){
       // pas de podium révélé, mais peut-être de l'intel à venir
@@ -2813,7 +2934,7 @@ async function renderClubPronos(mancheId, manche){
   const nat = isNations();
   const [pronosR, profilsR] = await Promise.all([
     sb.from('pronos').select('*').eq('manche_id', mancheId),
-    sb.from('profils').select('id,pseudo'),
+    sb.from('profils').select('id,pseudo,avatar'),
   ]);
   const pronos = pronosR.data||[];
   if(!pronos.length){
@@ -3399,6 +3520,21 @@ function colorFromName(name){
   return `hsl(${h},60%,68%)`;
 }
 
+// avatars thème motocross
+const MOTO_AVATARS = ['🏍️','🏁','🥇','🏆','🐺','🔧','⚙️','💨','🔥','⚡','🎯','👑','💪','🥷','🦊','🦅'];
+// cache des avatars par user_id (rempli par les vues)
+let AVATARS = {};
+// renvoie le HTML du contenu d'un avatar : emoji si choisi, sinon initiale
+function avatarInner(uid, pseudo){
+  const av = AVATARS[uid];
+  if(av) return `<span class="av-emoji">${av}</span>`;
+  return (pseudo||'?').trim().charAt(0).toUpperCase()||'?';
+}
+function avatarBg(uid, pseudo){
+  // si emoji, fond neutre sombre ; sinon couleur dérivée du pseudo
+  return AVATARS[uid] ? 'var(--night2)' : colorFromName(pseudo);
+}
+
 function initChat(){
   if(chatInited) return;
   chatInited = true;
@@ -3459,8 +3595,9 @@ function initChat(){
 }
 
 async function loadChatMembers(){
-  const { data } = await sb.from('profils').select('pseudo');
+  const { data } = await sb.from('profils').select('id,pseudo,avatar');
   chatMembers = (data||[]).map(p=>p.pseudo).filter(Boolean);
+  (data||[]).forEach(p=>{ if(p.avatar) AVATARS[p.id]=p.avatar; });
   chatTotalMembers = chatMembers.length;
   // charger les accusés de lecture
   const { data: reads } = await sb.from('chat_reads').select('user_id,last_read_id');
@@ -3562,7 +3699,7 @@ function renderChatMsg(m){
   const contenu = highlightMentions(escapeHtml(m.contenu));
   el.innerHTML=`
     <div class="cm-meta">
-      ${mine?'':`<span class="cm-pseudo" style="color:${colorFromName(m.pseudo)}">${escapeHtml(m.pseudo)}</span>`}
+      ${mine?'':`<span class="cm-avatar" style="background:${avatarBg(m.user_id, m.pseudo)}">${avatarInner(m.user_id, m.pseudo)}</span><span class="cm-pseudo" style="color:${colorFromName(m.pseudo)}">${escapeHtml(m.pseudo)}</span>`}
       <span class="cm-time">${chatTime(m.created_at)}</span>
     </div>
     <div class="cm-bubble">${contenu}</div>
