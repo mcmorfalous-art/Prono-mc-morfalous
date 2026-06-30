@@ -1029,7 +1029,7 @@ function hideSplash(){
 
 // ====== INSTALLATION PWA ======
 let __deferredPrompt = null;
-let __installDismissed = false;
+let __installDismissed = (localStorage.getItem('installDismissed') === '1');
 window.addEventListener('beforeinstallprompt', (e)=>{
   e.preventDefault();
   __deferredPrompt = e;
@@ -1037,6 +1037,7 @@ window.addEventListener('beforeinstallprompt', (e)=>{
 });
 window.addEventListener('appinstalled', ()=>{
   __deferredPrompt = null;
+  localStorage.setItem('appInstalled', '1'); // on se souvient qu'elle est installée
   const b = document.getElementById('installBanner');
   if(b) b.remove();
 });
@@ -1046,8 +1047,18 @@ function isStandalone(){
 function isIOS(){
   return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
 }
+// vérifie si l'appli est déjà installée (API Chrome récente), puis cache la bannière
+async function checkAlreadyInstalled(){
+  if(navigator.getInstalledRelatedApps){
+    try{
+      const apps = await navigator.getInstalledRelatedApps();
+      if(apps && apps.length){ localStorage.setItem('appInstalled','1'); }
+    }catch(e){}
+  }
+}
 function renderInstallBanner(){
-  if(__installDismissed || isStandalone()) return;
+  // ne pas afficher si : déjà fermée, déjà installée (mémorisée), ou lancée en mode appli
+  if(__installDismissed || isStandalone() || localStorage.getItem('appInstalled')==='1') return;
   const host = document.getElementById('installSlot');
   if(!host) return; // l'écran courant n'a pas de slot
   if(document.getElementById('installBanner')) return;
@@ -1079,12 +1090,19 @@ function renderInstallBanner(){
   if(inst) inst.onclick = async ()=>{
     if(!__deferredPrompt) return;
     __deferredPrompt.prompt();
-    try{ await __deferredPrompt.userChoice; }catch(e){}
+    try{
+      const choice = await __deferredPrompt.userChoice;
+      if(choice && choice.outcome === 'accepted'){ localStorage.setItem('appInstalled','1'); }
+    }catch(e){}
     __deferredPrompt = null;
     b.remove();
   };
   const close = document.getElementById('ibClose');
-  if(close) close.onclick = ()=>{ __installDismissed = true; b.remove(); };
+  if(close) close.onclick = ()=>{
+    __installDismissed = true;
+    localStorage.setItem('installDismissed', '1'); // on se souvient qu'elle a été fermée
+    b.remove();
+  };
   const helpIos = document.getElementById('ibHelpIos');
   if(helpIos) helpIos.onclick = showIosInstallHelp;
 }
@@ -4068,6 +4086,7 @@ function teardownChat(){
 // ====== DÉMARRAGE ======
 async function boot(){
   if(!sb) return;
+  checkAlreadyInstalled(); // masque la bannière si l'appli est déjà installée
   const { data:{ session } } = await sb.auth.getSession();
   if(session){ renderHome(session); }
   else { renderAuth(); }
