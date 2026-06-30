@@ -214,6 +214,29 @@ header::after{
 .home-section-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;color:var(--bone-dim);
   text-transform:uppercase;letter-spacing:.06em;margin:6px 2px 10px}
 
+/* en-tête héro accueil (sport) */
+.home-hero{display:flex;align-items:center;gap:14px;margin:4px 0 18px;padding:14px 16px;
+  border-radius:16px;position:relative;overflow:hidden;
+  background:linear-gradient(120deg, var(--night2) 60%, rgba(30,167,225,.12));
+  border:1px solid var(--line2)}
+.home-hero::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:repeating-linear-gradient(135deg, rgba(255,255,255,.025) 0 10px, transparent 10px 20px)}
+.home-hero::after{content:'';position:absolute;right:-30px;top:0;bottom:0;width:120px;
+  background:linear-gradient(90deg, transparent, rgba(226,59,46,.18));transform:skewX(-12deg)}
+.hero-logo{width:64px;height:64px;flex-shrink:0;border-radius:50%;background:var(--night);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+  border:2px solid var(--cyan);box-shadow:0 0 18px rgba(30,167,225,.35);z-index:1}
+.hero-logo img{width:100%;height:100%;object-fit:cover}
+.hero-titles{display:flex;flex-direction:column;min-width:0;z-index:1}
+.hero-kicker{color:var(--cyan);font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  text-transform:uppercase;letter-spacing:.16em;font-size:12px;margin-bottom:1px}
+.hero-title{margin:0;font-family:'Archivo Black',sans-serif;font-style:italic;
+  font-size:clamp(24px,7vw,32px);line-height:.92;text-transform:uppercase;color:#fff;
+  letter-spacing:-.01em;text-shadow:0 2px 12px rgba(0,0,0,.5)}
+.hero-title span{display:block;color:var(--cyan)}
+.hero-tag{color:var(--bone-dim);font-family:'Barlow Condensed',sans-serif;font-size:13px;
+  margin-top:6px;letter-spacing:.02em}
+
 /* rappel "ça ferme bientôt" */
 .home-alert{display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:14px;margin-bottom:14px;
   background:linear-gradient(120deg, rgba(226,59,46,.18), rgba(226,59,46,.06));
@@ -1398,6 +1421,14 @@ async function renderChampPicker(){
     </button>`;
 
   host.innerHTML = `
+    <div class="home-hero">
+      <div class="hero-logo"><img src="splash-logo.png" alt="MC Les Morfalous"></div>
+      <div class="hero-titles">
+        <div class="hero-kicker">MC Les Morfalous</div>
+        <h1 class="hero-title">PRONOS<span>MOTOCROSS</span></h1>
+        <div class="hero-tag">À toi de jouer, lombax 🐺</div>
+      </div>
+    </div>
     ${alertHtml}
     ${brefHtml}
     <div class="home-section-lbl">Choisis ton championnat</div>
@@ -1877,15 +1908,22 @@ async function computeActus(){
     const champLbl=CHAMP_LABELS[m.championnat]||m.championnat;
     // scores de tous les joueurs sur cette manche (cumul catégories)
     const perUser={};
+    const cinqByUser={}; // user_id -> { ok:[cat...], ko:[cat...] }  (tentatives 5e regroupées)
     pronos.filter(pr=> pr.manche_id===m.id).forEach(pr=>{
       const res=resByKey[pr.manche_id+'-'+pr.categorie]; if(!res) return;
       const bd=scoreBreakdown(pr,res); if(!bd) return;
       perUser[pr.user_id]=(perUser[pr.user_id]||0)+bd.total;
-      // bonus 5e réussi / raté
-      if(bd.double5) actus.push({type:'cinq_ok', uid:pr.user_id, manche:m.nom, champ:champLbl, cat:pr.categorie, ordre:m.ordre});
-      else if(bd.malus5) actus.push({type:'cinq_ko', uid:pr.user_id, manche:m.nom, champ:champLbl, cat:pr.categorie, ordre:m.ordre});
+      // bonus 5e : on regroupe les tentatives par joueur (toutes catégories)
+      if(bd.double5 || bd.malus5){
+        const c = cinqByUser[pr.user_id] = cinqByUser[pr.user_id] || {ok:[], ko:[]};
+        if(bd.double5) c.ok.push(pr.categorie); else c.ko.push(pr.categorie);
+      }
       // podium parfait
       if(bd.parfait) actus.push({type:'parfait', uid:pr.user_id, manche:m.nom, champ:champLbl, cat:pr.categorie, ordre:m.ordre});
+    });
+    // une seule actu "5e place" par joueur, combinant ses tentatives sur la manche
+    Object.entries(cinqByUser).forEach(([uid,c])=>{
+      actus.push({type:'cinq', uid, manche:m.nom, champ:champLbl, ok:c.ok, ko:c.ko, ordre:m.ordre});
     });
     // meilleur score de la manche
     const best=Object.entries(perUser).sort((a,b)=>b[1]-a[1])[0];
@@ -1897,10 +1935,18 @@ async function computeActus(){
   // attacher pseudo
   actus.forEach(a=> a.pseudo = pseudoById[a.uid]||'Joueur');
   // ordre : manche la plus récente d'abord, puis priorité parfait > 5e > top score
-  const prio={parfait:0, cinq_ok:1, cinq_ko:2, top_score:3};
+  const prio={parfait:0, cinq:1, top_score:2};
   actus.sort((a,b)=> (b.ordre-a.ordre) || (prio[a.type]-prio[b.type]));
   _actusCache = actus;
   return actus;
+}
+
+// formate une liste de catégories : ["450","250"] -> "le 450 et le 250"
+function fmtCats(cats){
+  const arr = cats.map(c=>`le ${c}`);
+  if(arr.length===1) return arr[0];
+  if(arr.length===2) return arr[0]+' et '+arr[1];
+  return arr.slice(0,-1).join(', ')+' et '+arr[arr.length-1];
 }
 
 // transforme une actu en texte + icône
@@ -1908,8 +1954,26 @@ function actuText(a){
   switch(a.type){
     case 'top_score': return {ico:'🔥', html:`<b>${a.pseudo}</b> a marqué <b>${a.pts} pts</b> sur ${a.manche} <span class="ac-champ">${a.champ}</span>`};
     case 'parfait':   return {ico:'🎯', html:`<b>${a.pseudo}</b> a réussi un <b>podium parfait</b> (${a.cat}) sur ${a.manche} <span class="ac-champ">${a.champ}</span>`};
-    case 'cinq_ok':   return {ico:'⭐', html:`<b>${a.pseudo}</b> a <b>doublé ses points</b> avec la 5e place (${a.cat}) sur ${a.manche} <span class="ac-champ">${a.champ}</span>`};
-    case 'cinq_ko':   return {ico:'💔', html:`<b>${a.pseudo}</b> a tenté la 5e place (${a.cat}) et perdu 5 pts sur ${a.manche} <span class="ac-champ">${a.champ}</span>`};
+    case 'cinq': {
+      const nOk=a.ok.length, nKo=a.ko.length;
+      let txt, ico;
+      if(nOk && nKo){
+        // mix : rate l'un, se rattrape sur l'autre
+        ico='😅';
+        txt=`<b>${a.pseudo}</b> a perdu 5 pts sur ${fmtCats(a.ko)} mais se rattrape avec la 5e place sur ${fmtCats(a.ok)}`;
+      } else if(nOk){
+        ico='⭐';
+        txt = nOk>1
+          ? `<b>${a.pseudo}</b> a <b>doublé ses points</b> avec la 5e place sur ${fmtCats(a.ok)} !`
+          : `<b>${a.pseudo}</b> a <b>doublé ses points</b> avec la 5e place (${a.ok[0]})`;
+      } else {
+        ico='💔';
+        txt = nKo>1
+          ? `<b>${a.pseudo}</b> a tenté la 5e place sur ${fmtCats(a.ko)} et perdu 5 pts à chaque fois`
+          : `<b>${a.pseudo}</b> a tenté la 5e place (${a.ko[0]}) et perdu 5 pts`;
+      }
+      return {ico, html:`${txt} sur ${a.manche} <span class="ac-champ">${a.champ}</span>`};
+    }
     default: return {ico:'•', html:''};
   }
 }
