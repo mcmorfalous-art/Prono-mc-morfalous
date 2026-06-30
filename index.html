@@ -202,22 +202,59 @@ header::after{
 .hello-big b{font-size:24px}
 
 /* hero accueil */
-.home-hero{text-align:center;margin:8px 0 20px}
-.home-logo{width:84px;height:84px;border-radius:50%;border:2px solid var(--cyan);margin:0 auto 8px;
-  display:flex;align-items:center;justify-content:center;font-size:38px;background:var(--night2);
-  box-shadow:0 0 22px rgba(30,167,225,.25)}
+.home-loading{text-align:center;color:var(--bone-dim);padding:40px;font-size:14px}
+.home-hero{text-align:center;margin:10px 0 18px;position:relative}
+.home-logo-wrap{position:relative;width:104px;height:104px;margin:0 auto 12px}
+.home-logo{position:absolute;inset:10px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:42px;background:var(--night2);
+  box-shadow:0 0 28px rgba(30,167,225,.3);z-index:2}
+.home-logo img{width:100%;height:100%;object-fit:contain;border-radius:50%}
+.home-ring{position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(from 0deg, var(--cyan), var(--red), var(--cyan));
+  -webkit-mask:radial-gradient(circle, transparent 46px, #000 47px);
+  mask:radial-gradient(circle, transparent 46px, #000 47px);
+  animation:homering 6s linear infinite}
+@keyframes homering{to{transform:rotate(360deg)}}
 .home-club{color:var(--cyan);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;
-  letter-spacing:.14em;font-size:13px;font-weight:700;margin-bottom:4px}
-.home-title{color:#fff;font-family:'Archivo Black',sans-serif;font-size:clamp(22px,6vw,28px);
-  text-transform:uppercase;line-height:1.05}
+  letter-spacing:.16em;font-size:14px;font-weight:700;margin-bottom:6px}
+.home-title{color:#fff;font-family:'Archivo Black',sans-serif;font-size:clamp(26px,7vw,34px);
+  text-transform:uppercase;line-height:1.02;text-shadow:0 2px 14px rgba(0,0,0,.4)}
+.home-checker{height:14px;margin:14px auto 0;max-width:200px;border-radius:3px;
+  background-image:linear-gradient(45deg,var(--line2) 25%,transparent 25%,transparent 75%,var(--line2) 75%),
+    linear-gradient(45deg,var(--line2) 25%,transparent 25%,transparent 75%,var(--line2) 75%);
+  background-size:14px 14px;background-position:0 0,7px 7px;opacity:.5}
+
+/* bandeau prochaine manche */
+.home-next{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;
+  margin-bottom:16px;padding:14px 16px;border-radius:15px;cursor:pointer;text-align:left;
+  background:linear-gradient(120deg, rgba(30,167,225,.14), rgba(226,59,46,.1));
+  border:1px solid rgba(30,167,225,.4);transition:transform .12s ease,border-color .12s ease;
+  animation:fadeUp .4s ease both}
+.home-next:hover{transform:translateY(-2px);border-color:var(--cyan)}
+.home-next .hn-left{display:flex;flex-direction:column;gap:2px;min-width:0}
+.home-next .hn-tag{font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--cyan);
+  text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.home-next .hn-nom{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:18px;color:#fff;
+  text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.home-next .hn-champ{font-size:11.5px;color:var(--bone-dim);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase}
+.home-next .hn-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}
+.home-next .hn-count{font-family:'Archivo Black',sans-serif;font-size:13px;color:#ffd954;white-space:nowrap}
+.home-next .hn-cta{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--cyan);
+  text-transform:uppercase;letter-spacing:.03em;font-weight:700}
 
 /* cartes championnat (accueil) */
 .champ-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px}
 .champ-card{border:1.5px solid var(--line2);border-radius:16px;background:var(--night2);
   padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:9px;cursor:pointer;
-  transition:transform .12s ease,border-color .12s ease}
-.champ-card:hover{border-color:var(--cyan);transform:translateY(-2px)}
+  transition:transform .14s ease,border-color .14s ease,box-shadow .14s ease;
+  animation:fadeUp .45s ease both;position:relative;overflow:hidden}
+.champ-card::after{content:'';position:absolute;top:0;left:-60%;width:50%;height:100%;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.07),transparent);
+  transform:skewX(-18deg);transition:left .5s ease}
+.champ-card:hover{border-color:var(--cyan);transform:translateY(-3px);box-shadow:0 10px 26px rgba(0,0,0,.35)}
+.champ-card:hover::after{left:130%}
 .champ-card:active{transform:scale(.98)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
 .cc-pastille{width:100%;aspect-ratio:1.4/1;max-height:120px;border-radius:13px;background:#fff;
   display:flex;align-items:center;justify-content:center;overflow:hidden;padding:10px}
 .cc-pastille img{max-width:100%;max-height:100%;object-fit:contain}
@@ -1324,35 +1361,69 @@ function renderShell(){
 // ----- PAGE D'ACCUEIL : choix du championnat -----
 async function renderChampPicker(){
   const host = document.getElementById('homeContent');
-  // compter les manches par championnat (info légère)
-  let counts = {};
+  host.innerHTML = `<div class="home-loading">Chargement…</div>`;
+  // charger manches (compter + trouver la prochaine à pronostiquer)
+  let counts = {}, manches = [];
   try{
-    const { data } = await sb.from('manches').select('championnat');
-    (data||[]).forEach(m=> counts[m.championnat]=(counts[m.championnat]||0)+1);
+    const { data } = await sb.from('manches').select('id,championnat,nom,closes_at,annulee,ordre');
+    manches = (data||[]).filter(m=>!m.annulee);
+    manches.forEach(m=> counts[m.championnat]=(counts[m.championnat]||0)+1);
   }catch(e){}
   const metaFor = c => c==='MXdN' ? '1 épreuve' : `${counts[c]||0} manche${(counts[c]||0)>1?'s':''}`;
+
+  // prochaine manche à pronostiquer (closes_at dans le futur, la plus proche)
+  const now = Date.now();
+  const upcoming = manches
+    .filter(m=> m.closes_at && new Date(m.closes_at).getTime()>now)
+    .sort((a,b)=> new Date(a.closes_at)-new Date(b.closes_at));
+  const next = upcoming[0] || null;
+
+  let nextBanner = '';
+  if(next){
+    const champLbl = CHAMP_LABELS[next.championnat]||next.championnat;
+    nextBanner = `
+      <button class="home-next" data-champ="${next.championnat}">
+        <div class="hn-left">
+          <span class="hn-tag">⏱ Prochaine manche</span>
+          <span class="hn-nom">${next.nom}</span>
+          <span class="hn-champ">${champLbl}</span>
+        </div>
+        <div class="hn-right">
+          <span class="hn-count" data-closes="${next.closes_at}">${countdownText(next.closes_at)}</span>
+          <span class="hn-cta">Pronostiquer →</span>
+        </div>
+      </button>`;
+  }
+
   host.innerHTML = `
     <div class="home-hero">
-      <div class="home-title">CHOISIS TON CHAMPIONNAT</div>
+      <div class="home-logo-wrap">
+        <div class="home-logo">🐺</div>
+        <div class="home-ring"></div>
+      </div>
+      <div class="home-club">MC Les Morfalous</div>
+      <div class="home-title">CHOISIS TON<br>CHAMPIONNAT</div>
+      <div class="home-checker"></div>
     </div>
+    ${nextBanner}
     <div class="champ-cards">
-      ${CHAMPS.map(c=>`
-        <button class="champ-card" data-champ="${c}">
+      ${CHAMPS.map((c,i)=>`
+        <button class="champ-card" data-champ="${c}" style="animation-delay:${i*0.07}s">
           <span class="cc-pastille">${CHAMP_LOGOS[c]?`<img src="${CHAMP_LOGOS[c]}" alt="${CHAMP_LABELS[c]}">`:`<span class="cc-emoji">${CHAMP_ICONS[c]||''}</span>`}</span>
           <span class="cc-name">${CHAMP_LABELS[c]||c}</span>
           <span class="cc-meta">${metaFor(c)}</span>
         </button>`).join('')}
     </div>
   `;
-  host.querySelectorAll('.champ-card').forEach(b=>{
-    b.onclick = ()=>{
-      currentChamp = b.dataset.champ;
-      PILOTES = {}; CHAMP_CLOSES_LOADED_FOR = null;
-      inChampScreen = true; currentView = 'pronos';
-      renderShell();
-      checkAlerts();
-    };
-  });
+  const enter = (champ)=>{
+    currentChamp = champ;
+    PILOTES = {}; CHAMP_CLOSES_LOADED_FOR = null;
+    inChampScreen = true; currentView = 'pronos';
+    renderShell(); checkAlerts();
+  };
+  host.querySelectorAll('.champ-card').forEach(b=> b.onclick = ()=> enter(b.dataset.champ));
+  const nb = host.querySelector('.home-next');
+  if(nb) nb.onclick = ()=> enter(nb.dataset.champ);
 }
 
 // ----- DANS UN CHAMPIONNAT : switch rapide + menu + vue -----
