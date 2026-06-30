@@ -1361,6 +1361,7 @@ function renderShell(){
   const isAdmin = window._isAdmin;
   app.innerHTML = `
     <div id="installSlot"></div>
+    <div id="heroSlot"></div>
     <div class="topbar">
       <div class="topbar-user">
         ${inChampScreen
@@ -1420,15 +1421,20 @@ async function renderChampPicker(){
       <div class="hb-list" id="hbList"><div class="hb-empty">Chargement…</div></div>
     </button>`;
 
+  // en-tête héro tout en haut (au-dessus du Salut/burger)
+  const heroSlot = document.getElementById('heroSlot');
+  if(heroSlot){
+    heroSlot.innerHTML = `
+      <div class="home-hero">
+        <div class="hero-logo"><img src="splash-logo.png" alt="MC Les Morfalous"></div>
+        <div class="hero-titles">
+          <div class="hero-kicker">MC Les Morfalous</div>
+          <h1 class="hero-title">PRONOS<span>MOTOCROSS</span></h1>
+        </div>
+      </div>`;
+  }
+
   host.innerHTML = `
-    <div class="home-hero">
-      <div class="hero-logo"><img src="splash-logo.png" alt="MC Les Morfalous"></div>
-      <div class="hero-titles">
-        <div class="hero-kicker">MC Les Morfalous</div>
-        <h1 class="hero-title">PRONOS<span>MOTOCROSS</span></h1>
-        <div class="hero-tag">À toi de jouer, lombax 🐺</div>
-      </div>
-    </div>
     ${alertHtml}
     ${brefHtml}
     <div class="home-section-lbl">Choisis ton championnat</div>
@@ -1462,6 +1468,8 @@ async function renderChampPicker(){
 
 // ----- DANS UN CHAMPIONNAT : switch rapide + menu + vue -----
 function renderChampInner(){
+  const heroSlot = document.getElementById('heroSlot');
+  if(heroSlot) heroSlot.innerHTML = '';
   const host = document.getElementById('homeContent');
   host.innerHTML = `
     <div class="champ-switch" id="champSwitch">
