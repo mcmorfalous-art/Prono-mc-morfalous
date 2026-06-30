@@ -158,7 +158,10 @@ header::after{
 .champ-btn{flex:1;max-width:130px;padding:9px 6px;border:1.5px solid var(--line2);
   background:var(--night);cursor:pointer;border-radius:10px;
   font-family:'Archivo Black',sans-serif;font-size:13px;text-transform:uppercase;
-  letter-spacing:.02em;color:var(--bone-dim)}
+  letter-spacing:.02em;color:var(--bone-dim);
+  display:flex;flex-direction:column;align-items:center;gap:3px;line-height:1.1}
+.champ-btn .champ-ico{font-size:18px;line-height:1}
+.champ-btn .champ-lbl{font-size:11.5px}
 .champ-btn.active{background:linear-gradient(180deg,var(--red),#b32a20);color:#fff;border-color:var(--red)}
 .champ-btn:hover:not(.active){border-color:var(--cyan);color:var(--cyan)}
 
@@ -182,6 +185,12 @@ header::after{
   font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12.5px;
   text-transform:uppercase;letter-spacing:.02em;color:var(--bone-dim);white-space:nowrap}
 .nav-btn.active{background:linear-gradient(180deg,var(--cyan),var(--cyan-deep));color:#fff}
+/* bouton Jouer mis en avant */
+.nav-btn.play{color:var(--cyan);border:1.5px solid var(--cyan);font-size:13.5px;padding:8px 12px}
+.nav-btn.play .nav-ico{margin-right:4px}
+.nav-btn.play.active{background:linear-gradient(180deg,var(--cyan),var(--cyan-deep));color:#fff;
+  border-color:var(--cyan);box-shadow:0 0 14px rgba(30,167,225,.4)}
+.nav-btn.play:not(.active):hover{background:rgba(30,167,225,.1)}
 
 /* sections */
 .sec-title{font-family:'Archivo Black',sans-serif;font-size:18px;text-transform:uppercase;
@@ -1082,6 +1091,7 @@ let currentSession = null;
 let currentChamp = 'AMA'; // championnat sélectionné (valeur interne)
 const CHAMPS = ['AMA','MXGP','Vendée','MXdN'];
 const CHAMP_LABELS = { 'AMA':'MX US', 'MXGP':'MXGP', 'Vendée':'Vendée', 'MXdN':'MX des Nations' };
+const CHAMP_ICONS = { 'AMA':'🇺🇸', 'MXGP':'🌍', 'Vendée':'🏁', 'MXdN':'🏆' };
 // catégories par championnat (ordre = ordre d'affichage)
 const CHAMP_CATS = {
   'AMA':    ['450','250'],
@@ -1162,13 +1172,13 @@ async function renderHome(session){
       <button class="btn-ghost sm" id="logout">Déconnexion</button>
     </div>
     <div class="champ-selector" id="champSelector">
-      ${CHAMPS.map(c=>`<button class="champ-btn ${c===currentChamp?'active':''}" data-champ="${c}">${CHAMP_LABELS[c]||c}</button>`).join('')}
+      ${CHAMPS.map(c=>`<button class="champ-btn ${c===currentChamp?'active':''}" data-champ="${c}"><span class="champ-ico">${CHAMP_ICONS[c]||''}</span><span class="champ-lbl">${CHAMP_LABELS[c]||c}</span></button>`).join('')}
     </div>
     <div id="alertBanner"></div>
     <nav class="nav" id="nav">
-      <button class="nav-btn active" data-view="pronos">Pronos</button>
+      <button class="nav-btn play active" data-view="pronos"><span class="nav-ico">🏁</span>Jouer</button>
       <button class="nav-btn" data-view="mespronos">Mes pronos</button>
-      <button class="nav-btn" data-view="cluball">Pronos du club</button>
+      <button class="nav-btn" data-view="cluball">Le club</button>
       <button class="nav-btn" data-view="classement">Classement</button>
       <button class="nav-btn" data-view="regles">Règles</button>
       ${isAdmin ? '<button class="nav-btn" data-view="admin">Admin</button>' : ''}
