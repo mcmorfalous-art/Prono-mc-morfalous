@@ -3921,9 +3921,11 @@ async function renderAdminPilotes(body){
 // ---- Nouveau : admin pilotes famille US ----
 async function renderAdminPilotesUS(body){
   body.innerHTML = `<div class="loading">Chargement…</div>`;
-  const [{ data: liens }, { data: fiches }] = await Promise.all([
+  const [{ data: liens }, { data: fiches }, { data: propos }] = await Promise.all([
     sb.from('pilotes_listes').select('pilote_id, championnat, categorie'),
-    sb.from('pilotes').select('id, nom, numero, valide').eq('championnat','AMA')
+    sb.from('pilotes').select('id, nom, numero, valide').eq('championnat','AMA').eq('valide', true),
+    sb.from('pilotes').select('id, nom, numero, categorie, championnat')
+      .in('championnat', CHAMPS_LISTES).eq('valide', false)
   ]);
   const liensByPilote = {};
   (liens||[]).forEach(l=>{ (liensByPilote[l.pilote_id] = liensByPilote[l.pilote_id]||[]).push(l); });
@@ -3933,6 +3935,21 @@ async function renderAdminPilotesUS(body){
     const lab = l.championnat==='AMA'?'MX':l.championnat==='SXUS'?'SX':'SMX';
     return `<span class="cat-tag ${catClass(l.categorie)}" style="font-size:9px">${lab} ${l.categorie.replace('250 ','')}</span>`;
   }).join('');
+
+  // bloc propositions (pilotes non validés de la famille US)
+  const proposBlock = (propos && propos.length) ? `
+    <div class="propos-zone">
+      <div class="sec-title" style="font-size:15px;color:var(--cyan)">⏳ Propositions à valider (${propos.length})</div>
+      ${propos.map(p=>`
+        <div class="propos-row">
+          <span class="propos-info"><b>${p.numero!=null?`#${p.numero} `:''}${(p.nom||'').replace(/</g,'&lt;')}</b>
+            <span class="cat-mini ${catClass(p.categorie)}">${CHAMP_LABELS[p.championnat]||p.championnat} · ${p.categorie}</span></span>
+          <span class="propos-actions">
+            <button class="propos-ok" data-id="${p.id}">Valider</button>
+            <button class="propos-no" data-id="${p.id}">Rejeter</button>
+          </span>
+        </div>`).join('')}
+    </div>` : '';
 
   // grouper par catégorie DU CHAMPIONNAT COURANT, trier par numéro
   const catsCourant = cats(); // ex SX : ['450','250 West','250 East','250']
@@ -3964,10 +3981,30 @@ async function renderAdminPilotesUS(body){
   body.innerHTML = `
     <div class="sec-title">Gestion des pilotes · ${CHAMP_LABELS[currentChamp]}</div>
     <p class="sec-sub">Clique sur un pilote pour choisir ses listes. Le pilote est partagé entre MX US, SX US et SMX.</p>
+    ${proposBlock}
     <button class="btn" id="addPiloteUS">+ Ajouter un pilote</button>
     ${sections}
     <div id="pilModalHost"></div>
   `;
+
+  // valider une proposition : ouvre la modale à cocher, pré-cochée sur la liste proposée
+  body.querySelectorAll('.propos-ok').forEach(btn=>{
+    btn.onclick = ()=>{
+      const p = (propos||[]).find(x=>x.id===+btn.dataset.id);
+      if(!p) return;
+      // liaison pré-cochée = là où il a été proposé
+      const preLiens = [{ championnat:p.championnat, categorie:p.categorie }];
+      openPiloteEditor(null, preLiens, { nom:p.nom, numero:p.numero }, body, p.id);
+    };
+  });
+  // rejeter une proposition
+  body.querySelectorAll('.propos-no').forEach(btn=>{
+    btn.onclick = async ()=>{
+      if(!confirm('Rejeter cette proposition ?')) return;
+      await sb.from('pilotes').delete().eq('id', +btn.dataset.id);
+      renderAdminPilotesUS(body);
+    };
+  });
 
   body.querySelectorAll('.pil-us-row').forEach(btn=>{
     btn.onclick = ()=> openPiloteEditor(+btn.dataset.id, liensByPilote[+btn.dataset.id]||[], ficheById[+btn.dataset.id], body);
@@ -3976,7 +4013,8 @@ async function renderAdminPilotesUS(body){
 }
 
 // éditeur d'un pilote — MODALE centrée
-function openPiloteEditor(pid, liens, fiche, body){
+// proposId : si fourni, on valide une proposition (on supprimera la ligne proposée après création de la fiche)
+function openPiloteEditor(pid, liens, fiche, body, proposId){
   const host = document.getElementById('pilModalHost') || body;
   const has = (champ,cat)=> liens.some(l=>l.championnat===champ && l.categorie===cat);
   const num = fiche ? (fiche.numero??'') : '';
@@ -4047,6 +4085,10 @@ function openPiloteEditor(pid, liens, fiche, body){
       const rows = checked.map(c=>({ pilote_id:id, championnat:c.championnat, categorie:c.categorie }));
       const { error } = await sb.from('pilotes_listes').insert(rows);
       if(error) return peMsg(error.message, 'err');
+    }
+    // si on validait une proposition, supprimer la ligne proposée d'origine
+    if(proposId && proposId!==id){
+      await sb.from('pilotes').delete().eq('id', proposId);
     }
     PILOTES = {};
     close();
