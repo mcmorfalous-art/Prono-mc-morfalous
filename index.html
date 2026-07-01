@@ -891,7 +891,28 @@ header::after{
 #confettiCanvas{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999}
 
 /* page règles */
-.regles .reg-intro{color:var(--bone-dim);font-size:14px;line-height:1.5;margin-bottom:20px}
+.regles .reg-intro{color:var(--bone-dim);font-size:14px;line-height:1.5;margin-bottom:16px}
+
+/* accordéon règlement */
+.reg-acc{display:flex;flex-direction:column;gap:10px}
+.reg-sec{border:1px solid var(--line2);border-radius:12px;overflow:hidden;background:var(--night)}
+.reg-sec-head{display:flex;align-items:center;gap:11px;width:100%;padding:14px 15px;cursor:pointer;
+  background:none;border:none;text-align:left}
+.reg-sec-ico{font-size:19px}
+.reg-sec-title{flex:1;font-family:'Archivo Black',sans-serif;font-style:italic;font-size:15px;
+  color:#fff;text-transform:uppercase;letter-spacing:-.01em}
+.reg-chev{color:var(--cyan);font-size:14px;transition:transform .25s ease}
+.reg-sec.open .reg-chev{transform:rotate(90deg)}
+.reg-sec-body{max-height:0;overflow:hidden;transition:max-height .4s ease}
+.reg-sec.open .reg-sec-body{max-height:3000px}
+.reg-sec-in{padding:0 15px 16px}
+.reg-sec-in .reg-h{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;
+  text-transform:uppercase;letter-spacing:.03em;margin:14px 0 6px;color:var(--cyan)}
+.reg-sec-in .reg-h:first-child{margin-top:4px}
+.reg-sec-in p{color:var(--bone);font-size:13.5px;line-height:1.5;margin:0 0 8px}
+.reg-champ{color:var(--bone);font-size:13.5px;line-height:1.5;padding:8px 0;border-bottom:1px solid var(--line)}
+.reg-champ:last-child{border-bottom:none}
+.reg-note{display:block;margin-top:5px;color:#ffd954;font-size:12.5px;font-style:italic}
 .reg-block{margin-bottom:20px}
 .reg-h{display:flex;align-items:center;gap:10px;font-family:'Barlow Condensed',sans-serif;
   font-weight:700;font-size:17px;text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px;color:#fff}
@@ -2573,97 +2594,109 @@ async function deleteMancheProno(mancheId, manche){
 function renderRegles(v){
   v.innerHTML = `
     <div class="card regles">
-      <div class="sec-title">Comment jouer</div>
-      <p class="reg-intro">Le jeu de pronostics du MC Les Morfalous. Pronostique les podiums du championnat AMA Pro Motocross et grimpe au classement !</p>
+      <div class="sec-title">Règlement</div>
+      <p class="reg-intro">Le jeu de pronostics du <b>MC Les Morfalous</b>. Pronostique les podiums des courses de motocross et supercross, et grimpe au classement de chaque championnat ! 🐺</p>
 
-      <div class="reg-block">
-        <div class="reg-h"><span class="reg-num">1</span> Le principe</div>
-        <p>Avant chaque manche, tu pronostiques le <b>podium des deux catégories</b> (450 et 250) : 1er, 2e et 3e. Tu peux aussi tenter un <b>bonus sur le 5e</b>. Plus tu es précis, plus tu marques.</p>
+      <div class="reg-acc" id="regAcc">
+
+        <div class="reg-sec">
+          <button class="reg-sec-head"><span class="reg-sec-ico">🏁</span><span class="reg-sec-title">Le jeu</span><span class="reg-chev">▸</span></button>
+          <div class="reg-sec-body"><div class="reg-sec-in">
+            <div class="reg-h">Le principe</div>
+            <p>Avant chaque course, tu pronostiques le <b>podium</b> de chaque catégorie : qui finira <b>1er, 2e et 3e</b>. Tu peux aussi tenter un <b>bonus sur le 5e</b>. Plus tu es précis, plus tu marques de points.</p>
+            <div class="reg-h">Les fermetures</div>
+            <p>Les pronos d'une course ferment <b>la veille à 23h59</b>. Un compte à rebours t'indique le temps restant. Après la fermeture, impossible de modifier : anticipe ! ⏱️</p>
+            <div class="reg-h">Un pilote manque ?</div>
+            <p>Si un pilote engagé n'est pas dans la liste, utilise <b>« + Proposer un pilote absent »</b> sur l'écran de prono. L'admin le validera et il apparaîtra pour tout le monde.</p>
+          </div></div>
+        </div>
+
+        <div class="reg-sec">
+          <button class="reg-sec-head"><span class="reg-sec-ico">🌍</span><span class="reg-sec-title">Les championnats</span><span class="reg-chev">▸</span></button>
+          <div class="reg-sec-body"><div class="reg-sec-in">
+            <p>6 championnats à pronostiquer, chacun avec son <b>classement séparé</b> :</p>
+            <div class="reg-champ"><b>🏆 MXGP</b> — le championnat du monde (450 & 250).</div>
+            <div class="reg-champ"><b>🇺🇸 MX US</b> — l'AMA Pro Motocross américain (450 & 250).</div>
+            <div class="reg-champ"><b>🏟️ SX US</b> — le Supercross américain. Le 250 est divisé en <b>250 West</b> et <b>250 East</b> (deux tournées régionales), plus quelques manches <b>Showdown</b> où les deux se rejoignent. <span class="reg-note">⚠️ Le SX US 2026 est déjà terminé : on ne pronostique pas dessus cette année, mais ses résultats servent aux stats. Il sera jouable en 2027 !</span></div>
+            <div class="reg-champ"><b>⭐ SMX Playoffs</b> — le SuperMotocross World Championship : 3 finales (Playoff 1, 2 et Final en septembre) réunissant les meilleurs du SX et du MX.</div>
+            <div class="reg-champ"><b>🏁 Vendée</b> — le championnat régional, catégories variables selon les épreuves (MX1, MX2, 125, Vétérans, 65).</div>
+            <div class="reg-champ"><b>🇫🇷 MX des Nations</b> — cas spécial : on pronostique le <b>podium des NATIONS</b> (quels pays finiront 1er, 2e, 3e), pas des pilotes. Tu peux aussi tenter le bonus sur la 5e nation. Le barème est le même qu'une course classique.</div>
+          </div></div>
+        </div>
+
+        <div class="reg-sec">
+          <button class="reg-sec-head"><span class="reg-sec-ico">🎯</span><span class="reg-sec-title">Les points</span><span class="reg-chev">▸</span></button>
+          <div class="reg-sec-body"><div class="reg-sec-in">
+            <div class="reg-h">Barème par course</div>
+            <table class="reg-table">
+              <tr><td>Podium parfait (3 pilotes dans l'ordre exact)</td><td class="reg-pt">15 +3</td></tr>
+              <tr><td>Les 3 bons pilotes mais dans le désordre</td><td class="reg-pt">12 pts</td></tr>
+              <tr><td>2 pilotes bien placés</td><td class="reg-pt">10 pts</td></tr>
+              <tr><td>2 bons pilotes : 1 bien, 1 mal placé</td><td class="reg-pt">9 pts</td></tr>
+              <tr><td>2 bons pilotes mais mal placés</td><td class="reg-pt">8 pts</td></tr>
+              <tr><td>1 pilote bien placé</td><td class="reg-pt">5 pts</td></tr>
+              <tr><td>1 bon pilote mais mal placé</td><td class="reg-pt">3 pts</td></tr>
+              <tr><td>Aucun bon pilote</td><td class="reg-pt">0 pt</td></tr>
+            </table>
+            <p class="reg-bonus"><b>Bonus podium parfait</b> : 3 pilotes dans l'ordre exact = <b>+3 pts</b> (soit 18) !</p>
+            <p class="reg-bonus"><b>Bonus 5e place</b> (optionnel, à double tranchant) : tu trouves le 5e → tes points de la catégorie sont <b>doublés</b> ! Tu te trompes → tu perds <b>5 pts</b>. À jouer si tu le sens. 🎲</p>
+
+            <div class="reg-h">Le prono championnat</div>
+            <p>En plus des courses, tu pronostiques le <b>podium final du championnat</b>. Il ferme à la <b>mi-saison</b> et, une fois validé, c'est <b>définitif</b> ! Barème plus généreux :</p>
+            <table class="reg-table">
+              <tr><td>Podium parfait final (ordre exact)</td><td class="reg-pt">30 +5</td></tr>
+              <tr><td>Les 3 bons mais dans le désordre</td><td class="reg-pt">24 pts</td></tr>
+              <tr><td>2 bien placés</td><td class="reg-pt">20 pts</td></tr>
+              <tr><td>2 bons : 1 bien, 1 mal placé</td><td class="reg-pt">18 pts</td></tr>
+              <tr><td>2 bons mais mal placés</td><td class="reg-pt">16 pts</td></tr>
+              <tr><td>1 bien placé</td><td class="reg-pt">10 pts</td></tr>
+              <tr><td>1 bon mais mal placé</td><td class="reg-pt">6 pts</td></tr>
+            </table>
+            <p class="reg-bonus"><b>Bonus 5e championnat</b> : tu trouves le 5e final → points <b>triplés</b> (×3) ! Sinon <b>−15 pts</b>. Gros risque, grosse récompense. 🔥</p>
+
+            <div class="reg-h">Les classements</div>
+            <p>Chaque championnat a ses classements par catégorie + un <b>Général</b> (tout cumulé). En SX US, tu retrouves <b>450, 250 West, 250 East et 250 Showdown</b>. Touche ton nom au classement pour voir le détail course par course.</p>
+
+            <div class="reg-h">Les stats</div>
+            <p><b>Stats pros</b> (onglet Jouer) : les tendances des pilotes pour t'aider à pronostiquer. <b>Stats du club</b> (onglet Classement) : le palmarès des membres — meilleur pronostiqueur, roi du podium parfait, etc.</p>
+          </div></div>
+        </div>
+
+        <div class="reg-sec">
+          <button class="reg-sec-head"><span class="reg-sec-ico">🏆</span><span class="reg-sec-title">Récompenses & installation</span><span class="reg-chev">▸</span></button>
+          <div class="reg-sec-body"><div class="reg-sec-in">
+            <div class="reg-h">Les récompenses</div>
+            <p>En fin de saison, les <b>3 premiers de chaque championnat</b> montent sur le podium et sont récompensés par le club. Chaque championnat a son propre podium : vise le sommet dans ta discipline préférée… ou dans toutes ! 🏆</p>
+            <div class="reg-h">Installer l'appli</div>
+            <p><b>Android :</b> un bandeau « Installer » apparaît en haut. Appuie dessus. (Sinon menu ⋮ de Chrome → « Ajouter à l'écran d'accueil ».)</p>
+            <p style="margin-top:6px"><b>iPhone / iPad :</b> à faire à la main depuis <b>Safari</b> :</p>
+            <ol class="ios-steps">
+              <li>Ouvre l'appli dans <b>Safari</b>.</li>
+              <li>Appuie sur <b>Partager</b> (carré + flèche vers le haut).</li>
+              <li>Choisis <b>« Sur l'écran d'accueil »</b>, puis <b>Ajouter</b>.</li>
+            </ol>
+          </div></div>
+        </div>
+
+        <div class="reg-sec">
+          <button class="reg-sec-head"><span class="reg-sec-ico">👤</span><span class="reg-sec-title">Mon compte & contact</span><span class="reg-chev">▸</span></button>
+          <div class="reg-sec-body"><div class="reg-sec-in">
+            <div class="reg-h">Nous contacter</div>
+            <p>Une question, un souci, une idée ? Écris-nous à <a href="mailto:mcmorfalous@gmail.com">mcmorfalous@gmail.com</a>.</p>
+            <div class="reg-h">Supprimer mon compte</div>
+            <p>Tu peux supprimer ton compte à tout moment. La suppression efface <b>définitivement</b> ton pseudo, tes pronostics et tes stats. Action irréversible.</p>
+            <button class="btn-del" id="reglesDelete" style="max-width:280px;margin:12px auto 0;display:block">Supprimer mon compte</button>
+          </div></div>
+        </div>
+
       </div>
-
-      <div class="reg-block">
-        <div class="reg-h"><span class="reg-num">2</span> Le barème par manche</div>
-        <table class="reg-table">
-          <tr><td>Podium parfait (3 pilotes dans l'ordre exact)</td><td class="reg-pt">15 +3 bonus</td></tr>
-          <tr><td>Les 3 bons pilotes mais dans le désordre</td><td class="reg-pt">12 pts</td></tr>
-          <tr><td>2 pilotes bien placés</td><td class="reg-pt">10 pts</td></tr>
-          <tr><td>2 bons pilotes : 1 bien placé, 1 mal placé</td><td class="reg-pt">9 pts</td></tr>
-          <tr><td>2 bons pilotes mais mal placés</td><td class="reg-pt">8 pts</td></tr>
-          <tr><td>1 pilote bien placé</td><td class="reg-pt">5 pts</td></tr>
-          <tr><td>1 bon pilote mais mal placé</td><td class="reg-pt">3 pts</td></tr>
-          <tr><td>Aucun bon pilote</td><td class="reg-pt">0 pt</td></tr>
-        </table>
-        <p class="reg-bonus"><b>Bonus podium parfait</b> : si tu places les 3 pilotes dans l'ordre exact, tu gagnes <b>+3 points</b> en plus (soit 18 pts) !<br><br><b>Bonus 5e place</b> (optionnel, à double tranchant) : si tu le tentes et que tu trouves le 5e, tes points de la catégorie sont <b>doublés</b> ! Mais si tu te trompes, tu perds <b>5 points</b>. À jouer si tu te sens inspiré.</p>
-      </div>
-
-      <div class="reg-block">
-        <div class="reg-h"><span class="reg-num">3</span> Le prono championnat</div>
-        <p>En plus des manches, tu pronostiques le <b>podium final du championnat</b> (450 et 250). Attention : il se ferme à la <b>mi-saison</b> et une fois validé, c'est <b>définitif</b> ! Le barème est plus généreux :</p>
-        <table class="reg-table">
-          <tr><td>Podium parfait (3 pilotes dans l'ordre exact)</td><td class="reg-pt">30 +5 bonus</td></tr>
-          <tr><td>Les 3 bons pilotes mais dans le désordre</td><td class="reg-pt">24 pts</td></tr>
-          <tr><td>2 pilotes bien placés</td><td class="reg-pt">20 pts</td></tr>
-          <tr><td>2 bons pilotes : 1 bien placé, 1 mal placé</td><td class="reg-pt">18 pts</td></tr>
-          <tr><td>2 bons pilotes mais mal placés</td><td class="reg-pt">16 pts</td></tr>
-          <tr><td>1 pilote bien placé</td><td class="reg-pt">10 pts</td></tr>
-          <tr><td>1 bon pilote mais mal placé</td><td class="reg-pt">6 pts</td></tr>
-          <tr><td>Aucun bon pilote</td><td class="reg-pt">0 pt</td></tr>
-        </table>
-        <p class="reg-bonus"><b>Bonus podium parfait championnat</b> : podium final dans l'ordre exact = <b>+5 points</b> (soit 35 pts) !<br><br><b>Bonus 5e place championnat</b> : si tu trouves le 5e du championnat, tes points sont <b>triplés</b> (×3) ! Mais si tu te trompes, tu perds <b>15 points</b>. Gros risque, grosse récompense.</p>
-      </div>
-
-      <div class="reg-block">
-        <div class="reg-h"><span class="reg-num">🏆</span> Le Motocross des Nations</div>
-        <p>Cas spécial : pour le <b>MX des Nations</b> (Ernée, les 3 et 4 octobre 2026), on ne pronostique pas des pilotes mais le <b>podium des NATIONS</b> : quels pays finiront 1er, 2e et 3e. Tu peux aussi tenter le bonus sur la 5e nation. Le barème est le même que celui d'une manche classique (podium parfait, bonus 5e, etc.). Une nation manque dans la liste ? Tu peux la proposer, et l'organisation la validera.</p>
-      </div>
-
-      <div class="reg-block">
-        <div class="reg-h"><span class="reg-num">4</span> Les fermetures</div>
-        <p>Les pronos d'une manche ferment <b>la veille de la course à 23h59</b>. Un compte à rebours t'indique le temps restant. Après la fermeture, impossible de modifier : anticipe !</p>
-      </div>
-
-      <div class="reg-block">
-        <div class="reg-h"><span class="reg-num">5</span> Les classements</div>
-        <p>Trois classements sont tenus : <b>450</b>, <b>250</b> et <b>Général</b> (les deux cumulés). Touche ton nom au classement pour voir le détail de tes points manche par manche.</p>
-      </div>
-
-      <div class="reg-block">
-        <div class="reg-h"><span class="reg-num">6</span> Un pilote manque ?</div>
-        <p>Si un pilote engagé n'est pas dans la liste, utilise le bouton <b>« + Proposer un pilote absent »</b> sur l'écran de prono. L'admin du club le validera et il apparaîtra pour tout le monde.</p>
-      </div>
-
-      <div class="reg-block reg-prizes">
-        <div class="reg-h"><span class="reg-num">🏆</span> Les récompenses</div>
-        <p>En fin de saison, <b>les 3 premiers de chaque championnat</b> (MX US, MXGP, Vendée et MX des Nations) montent sur le podium et sont récompensés par le club. Chaque championnat a donc son propre podium : à toi de viser le sommet dans ta discipline préférée… ou dans toutes !</p>
-      </div>
-
-      <div class="reg-block">
-        <div class="reg-h"><span class="reg-num">📲</span> Installer l'appli sur ton téléphone</div>
-        <p><b>Sur Android :</b> un bandeau « Installer » apparaît en haut de l'appli. Appuie dessus, c'est automatique. (Sinon, menu ⋮ de Chrome → « Ajouter à l'écran d'accueil ».)</p>
-        <p style="margin-top:8px"><b>Sur iPhone / iPad :</b> Apple ne permet pas l'installation automatique, ça se fait à la main depuis <b>Safari</b> :</p>
-        <ol class="ios-steps">
-          <li>Ouvre l'appli dans <b>Safari</b> (pas Chrome ni Firefox).</li>
-          <li>Appuie sur le bouton <b>Partager</b> (carré avec une flèche vers le haut), situé <b>en bas de l'écran</b> ou <b>en haut à droite</b> selon ton modèle d'iPhone.</li>
-          <li>Choisis <b>« Sur l'écran d'accueil »</b>.</li>
-          <li>Appuie sur <b>Ajouter</b>.</li>
-        </ol>
-        <p>Une fois installée, l'appli s'ouvre en plein écran comme une vraie application, avec son icône du loup. 🐺</p>
-      </div>
-
-      <div class="reg-block reg-contact">
-        <div class="reg-h"><span class="reg-num">✉️</span> Nous contacter</div>
-        <p>Une question, un souci, une suggestion ? Écris-nous à <a href="mailto:mcmorfalous@gmail.com">mcmorfalous@gmail.com</a> et l'organisation du club te répondra.</p>
-      </div>
-
-      <div class="reg-block">
-        <div class="reg-h"><span class="reg-num">👤</span> Mon compte</div>
-        <p>Tu peux supprimer ton compte à tout moment, depuis ton profil (clique sur « Salut [ton pseudo] » en haut) ou via le bouton ci-dessous. La suppression efface <b>définitivement</b> ton pseudo, tes pronostics et tes statistiques. Cette action est irréversible.</p>
-        <button class="btn-del" id="reglesDelete" style="max-width:280px;margin:14px auto 0;display:block">Supprimer mon compte</button>
-      </div>
-
-      <p class="reg-foot">Bonne chance et que le meilleur pronostiqueur gagne ! 🏁</p>
+      <p class="reg-foot">Bonne chance, et que le meilleur pronostiqueur gagne ! 🏁🐺</p>
     </div>
   `;
+  // accordéon
+  v.querySelectorAll('.reg-sec-head').forEach(h=>{
+    h.onclick = ()=> h.closest('.reg-sec').classList.toggle('open');
+  });
   const delBtn = document.getElementById('reglesDelete');
   if(delBtn) delBtn.onclick = ()=> confirmDeleteAccount(null);
 }
