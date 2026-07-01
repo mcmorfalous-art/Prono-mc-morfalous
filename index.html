@@ -1632,6 +1632,7 @@ async function renderChampPicker(){
     </div>
   `;
   const enter = (champ)=>{
+    const sh=document.getElementById('scrollHint'); if(sh) sh.remove();
     currentChamp=champ; PILOTES={}; CHAMP_CLOSES_LOADED_FOR=null;
     inChampScreen=true; currentView='pronos'; renderShell(); checkAlerts();
   };
