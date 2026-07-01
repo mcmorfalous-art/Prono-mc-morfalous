@@ -311,6 +311,23 @@ header::after{
 .cc-meta{color:var(--bone-dim);font-size:11.5px;font-family:'Barlow Condensed',sans-serif;
   text-transform:uppercase;letter-spacing:.04em}
 
+/* titre de saison */
+.hsl-saison{color:var(--cyan);font-weight:700}
+
+/* championnat terminé : léger grisé + mention */
+.champ-card.is-done{opacity:.62;filter:grayscale(.35)}
+.champ-card.is-done:hover{opacity:.85;filter:grayscale(0)}
+.cc-done{position:absolute;top:8px;right:8px;z-index:2;
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:10.5px;
+  text-transform:uppercase;letter-spacing:.06em;color:var(--bone);
+  background:rgba(10,22,34,.82);border:1px solid var(--line2);
+  padding:2px 8px;border-radius:20px}
+.done-toggle{display:flex;align-items:center;gap:10px;padding:11px 13px;margin-bottom:14px;
+  background:var(--night);border:1px solid var(--line2);border-radius:11px;cursor:pointer;
+  font-size:13.5px;color:var(--bone)}
+.done-toggle input{width:18px;height:18px;flex-shrink:0;accent-color:var(--cyan);cursor:pointer}
+.done-toggle b{color:#fff}
+
 /* barre de switch rapide (dans un championnat) */
 .champ-switch{display:flex;gap:6px;margin-bottom:12px}
 .champ-switch .champ-btn{flex:1;padding:8px 4px;border:1.5px solid var(--line2);
@@ -1303,6 +1320,7 @@ let currentProfil = null;
 let currentSession = null;
 let currentChamp = 'AMA'; // championnat sélectionné (valeur interne)
 const CHAMPS = ['AMA','MXGP','Vendée','MXdN'];
+let CHAMP_TERMINE = {}; // championnat -> true si terminé (chargé depuis championnats_meta)
 const CHAMP_LABELS = { 'AMA':'MX US', 'MXGP':'MXGP', 'Vendée':'Vendée', 'MXdN':'MX des Nations' };
 const CHAMP_ICONS = { 'AMA':'🇺🇸', 'MXGP':'🌍', 'Vendée':'🏁', 'MXdN':'🏆' };
 const CHAMP_LOGOS = {
@@ -1430,6 +1448,11 @@ async function renderChampPicker(){
     manches=(data||[]).filter(m=>!m.annulee);
     manches.forEach(m=> counts[m.championnat]=(counts[m.championnat]||0)+1);
   }catch(e){}
+  // état "terminé" des championnats
+  try{
+    const { data } = await sb.from('championnats_meta').select('championnat,termine');
+    CHAMP_TERMINE = {}; (data||[]).forEach(r=>{ CHAMP_TERMINE[r.championnat]=!!r.termine; });
+  }catch(e){}
   const metaFor = c => c==='MXdN' ? '1 épreuve' : `${counts[c]||0} manche${(counts[c]||0)>1?'s':''}`;
 
   // rappel : manches qui ferment dans moins de 12h
@@ -1471,10 +1494,11 @@ async function renderChampPicker(){
   host.innerHTML = `
     ${alertHtml}
     ${brefHtml}
-    <div class="home-section-lbl">Choisis ton championnat</div>
+    <div class="home-section-lbl">Choisis ton championnat <span class="hsl-saison">· Saison 2026</span></div>
     <div class="champ-cards">
       ${CHAMPS.map((c,i)=>`
-        <button class="champ-card" data-champ="${c}" style="animation-delay:${i*0.07}s">
+        <button class="champ-card ${CHAMP_TERMINE[c]?'is-done':''}" data-champ="${c}" style="animation-delay:${i*0.07}s">
+          ${CHAMP_TERMINE[c]?'<span class="cc-done">Terminé</span>':''}
           <span class="cc-pastille">${CHAMP_LOGOS[c]?`<img src="${CHAMP_LOGOS[c]}" alt="${CHAMP_LABELS[c]}">`:`<span class="cc-emoji">${CHAMP_ICONS[c]||''}</span>`}</span>
           <span class="cc-name">${CHAMP_LABELS[c]||c}</span>
           <span class="cc-meta">${metaFor(c)}</span>
@@ -3654,6 +3678,12 @@ async function renderAdminResultats(body){
   if(error){ body.innerHTML = `<div class="msg err show">${error.message}</div>`; return; }
   const { data: resultats } = await sb.from('resultats').select('manche_id,categorie');
   const resSet = new Set((resultats||[]).map(r=>r.manche_id+'-'+r.categorie));
+  // état "terminé" de ce championnat
+  let termine=false;
+  try{
+    const { data } = await sb.from('championnats_meta').select('termine').eq('championnat', currentChamp).maybeSingle();
+    termine = !!(data && data.termine);
+  }catch(e){}
 
   const rows = (manches||[]).map(m=>{
     const mc = mancheCats(m);
@@ -3677,8 +3707,20 @@ async function renderAdminResultats(body){
   body.innerHTML = `
     <div class="sec-title">Saisie des résultats</div>
     <p class="sec-sub">Clique sur une manche pour entrer le podium réel. Le bouton "Annuler" marque une épreuve non courue.</p>
+    <label class="done-toggle">
+      <input type="checkbox" id="champDone" ${termine?'checked':''}>
+      <span>Championnat <b>${CHAMP_LABELS[currentChamp]||currentChamp}</b> terminé (affiche "Terminé" sur l'accueil)</span>
+    </label>
     ${rows}
   `;
+  const doneChk = document.getElementById('champDone');
+  if(doneChk) doneChk.onchange = async ()=>{
+    const val = doneChk.checked;
+    const { error } = await sb.from('championnats_meta')
+      .upsert({ championnat: currentChamp, termine: val, updated_at: new Date().toISOString() });
+    if(error){ alert('Erreur : '+error.message); doneChk.checked = !val; return; }
+    CHAMP_TERMINE[currentChamp] = val;
+  };
   body.querySelectorAll('.admin-row:not([disabled])').forEach(b=>{
     b.onclick = ()=> openResultEntry(+b.dataset.manche, manches.find(m=>m.id==b.dataset.manche));
   });
