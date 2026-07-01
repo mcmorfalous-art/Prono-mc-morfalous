@@ -355,6 +355,26 @@ header::after{
 .acs-btn .acs-ico{font-size:15px}
 .acs-btn .acs-lbl{font-size:8.5px;text-transform:uppercase;white-space:nowrap}
 .acs-btn.active{background:linear-gradient(180deg,var(--cyan),var(--cyan-deep));color:#fff;border-color:var(--cyan)}
+
+/* stats du club */
+.scl-block{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.scl-block:first-of-type{border-top:none;padding-top:0}
+.scl-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:#fff;text-transform:uppercase;letter-spacing:.02em}
+.scl-desc{color:var(--bone-dim);font-size:12px;margin:2px 0 8px}
+.scl-row{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:9px;margin-bottom:4px;background:var(--night)}
+.scl-row.first{background:linear-gradient(90deg, rgba(255,217,84,.12), var(--night));border:1px solid rgba(255,217,84,.3)}
+.scl-rk{font-family:'Archivo Black',sans-serif;color:var(--cyan);font-size:13px;min-width:18px}
+.scl-row.first .scl-rk{color:#ffd954}
+.scl-name{flex:1;display:flex;align-items:center;gap:8px;color:var(--bone);font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:15px}
+.scl-ava{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;flex-shrink:0}
+.scl-val{font-family:'Archivo Black',sans-serif;font-size:14px;color:#fff}
+.scl-val small{font-family:'Barlow Condensed',sans-serif;font-weight:400;color:var(--bone-dim);font-size:11px}
+.scl-none{color:var(--bone-dim);font-size:13px;padding:6px 0}
+.scl-highlights{display:flex;flex-direction:column;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.scl-hl{display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--night);border-radius:10px}
+.scl-hl-ico{font-size:22px}
+.scl-hl-lbl{color:var(--bone-dim);font-size:11px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.04em}
+.scl-hl-val{color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px}
 .pe-title{color:#fff;font-family:'Archivo Black',sans-serif;font-size:16px;margin-bottom:14px}
 .pe-ident{display:flex;gap:10px;margin-bottom:16px}
 .pe-field label{color:var(--bone-dim);font-size:11px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.04em}
@@ -2689,8 +2709,144 @@ function renderClassementTab(v){
   document.getElementById('cmClass').onclick = ()=>{ classMode='classement'; renderClassementTab(v); };
   document.getElementById('cmStats').onclick = ()=>{ classMode='stats'; renderClassementTab(v); };
   const body = document.getElementById('classBody');
-  if(classMode==='stats') return renderStats(body);
+  if(classMode==='stats') return renderStatsClub(body);
   return renderClassement(body);
+}
+
+// ====== STATS DU CLUB (par championnat) ======
+async function renderStatsClub(v){
+  v.innerHTML = `<div class="card"><div class="loading">Calcul des stats du club…</div></div>`;
+  const [pronosR, resultatsR, manchesR, profilsR, pilotesR] = await Promise.all([
+    sb.from('pronos').select('*'),
+    sb.from('resultats').select('*'),
+    sb.from('manches').select('id,championnat,annulee,closes_at').eq('championnat', currentChamp),
+    sb.from('profils').select('id,pseudo,avatar'),
+    sb.from('pilotes').select('id,nom,numero,championnat')
+  ]);
+  const now = Date.now();
+  const manches = (manchesR.data||[]).filter(m=>!m.annulee);
+  const mIds = new Set(manches.map(m=>m.id));
+  const mFermees = new Set(manches.filter(m=> m.closes_at && new Date(m.closes_at).getTime()<=now).map(m=>m.id));
+  const resByKey = {}; (resultatsR.data||[]).forEach(r=>{ if(mIds.has(r.manche_id)) resByKey[r.manche_id+'-'+r.categorie]=r; });
+  const profils = profilsR.data||[];
+  const pseudoById = {}; profils.forEach(p=> pseudoById[p.id]=p.pseudo||'Joueur');
+  profils.forEach(p=>{ if(p.avatar) AVATARS[p.id]=p.avatar; });
+  const pidName = {}; (pilotesR.data||[]).forEach(p=> pidName[p.id]= p.championnat==='MXdN'?p.nom:`${p.nom}${p.numero?` #${p.numero}`:''}`);
+
+  // pronos de CE championnat, manches fermées seulement
+  const pronos = (pronosR.data||[]).filter(pr=> mFermees.has(pr.manche_id));
+
+  // agrégats par joueur
+  const agg = {}; // uid -> {total, played, parfaits, cinqOk, cinqTry, bestManche:{pts,mancheId}}
+  const bestByManche = {}; // pour "meilleure manche du club" : uid+manche -> pts
+  const piloteCount = {}; // pilote_id -> nb de fois pronostiqué (podium 1/2/3)
+
+  pronos.forEach(pr=>{
+    const res = resByKey[pr.manche_id+'-'+pr.categorie];
+    const a = agg[pr.user_id] = agg[pr.user_id] || {total:0, played:0, parfaits:0, cinqOk:0, cinqTry:0, byManche:{}};
+    a.played++;
+    // comptage pilotes pronostiqués (tendance)
+    [pr.p1_pilote_id, pr.p2_pilote_id, pr.p3_pilote_id].forEach(pid=>{ if(pid) piloteCount[pid]=(piloteCount[pid]||0)+1; });
+    if(pr.joue_bonus5) a.cinqTry++;
+    if(!res) return;
+    const bd = scoreBreakdown(pr, res); if(!bd) return;
+    a.total += bd.total;
+    a.byManche[pr.manche_id] = (a.byManche[pr.manche_id]||0) + bd.total;
+    if(bd.parfait) a.parfaits++;
+    if(bd.double5) a.cinqOk++;
+  });
+
+  const uids = Object.keys(agg);
+  const hasData = uids.length>0 && Object.values(resByKey).length>0;
+
+  if(!hasData){
+    v.innerHTML = `<div class="card"><div class="sec-title">📊 Stats du club</div>
+      <div class="placeholder">Les stats du club apparaîtront dès les premiers résultats sur ${CHAMP_LABELS[currentChamp]||currentChamp}.</div></div>`;
+    return;
+  }
+
+  // helpers de classement
+  const withName = (uid)=> `<span class="scl-ava" style="background:${avatarBg(uid,pseudoById[uid])}">${avatarInner(uid,pseudoById[uid])}</span> ${pseudoById[uid]}`;
+  const top = (arr, valFn, unit)=>{
+    const sorted = arr.filter(u=>valFn(u)>0).sort((a,b)=> valFn(b)-valFn(a));
+    if(!sorted.length) return '<div class="scl-none">—</div>';
+    return sorted.slice(0,3).map((uid,i)=>`
+      <div class="scl-row ${i===0?'first':''}">
+        <span class="scl-rk">${i+1}</span>
+        <span class="scl-name">${withName(uid)}</span>
+        <span class="scl-val">${valFn(uid)}${unit||''}</span>
+      </div>`).join('');
+  };
+
+  // meilleure manche (le plus gros score en une manche, tous joueurs)
+  let bestM = {pts:-999, uid:null};
+  uids.forEach(uid=> Object.values(agg[uid].byManche).forEach(pts=>{ if(pts>bestM.pts){ bestM={pts, uid}; } }));
+
+  // pilote chouchou du club
+  const chouchou = Object.entries(piloteCount).sort((a,b)=>b[1]-a[1])[0];
+
+  // moyenne du club
+  const totals = uids.map(u=>agg[u].total);
+  const moyClub = totals.length ? (totals.reduce((a,b)=>a+b,0)/totals.length).toFixed(1) : '—';
+
+  v.innerHTML = `
+    <div class="card">
+      <div class="sec-title">📊 Stats du club · ${CHAMP_LABELS[currentChamp]||currentChamp}</div>
+      <p class="sec-sub">Le palmarès des membres sur ce championnat.</p>
+
+      <div class="scl-block">
+        <div class="scl-title">👑 Meilleur pronostiqueur</div>
+        <p class="scl-desc">Le plus de points cumulés sur ${CHAMP_LABELS[currentChamp]||currentChamp}.</p>
+        ${top(uids, u=>agg[u].total, ' pts')}
+      </div>
+
+      <div class="scl-block">
+        <div class="scl-title">🎯 Roi du podium parfait</div>
+        <p class="scl-desc">Le plus de podiums exacts (3 pilotes dans l'ordre).</p>
+        ${top(uids, u=>agg[u].parfaits)}
+      </div>
+
+      <div class="scl-block">
+        <div class="scl-title">🍀 Spécialiste de la 5e</div>
+        <p class="scl-desc">Le plus de bonus 5e place réussis.</p>
+        ${top(uids, u=>agg[u].cinqOk)}
+      </div>
+
+      <div class="scl-block">
+        <div class="scl-title">📈 Le plus régulier</div>
+        <p class="scl-desc">Meilleure moyenne de points par prono joué.</p>
+        ${(()=>{ 
+          const moy = (u)=> agg[u].played ? +(agg[u].total/agg[u].played).toFixed(1) : 0;
+          const sorted = uids.filter(u=>agg[u].played>0 && agg[u].total>0).sort((a,b)=>moy(b)-moy(a));
+          if(!sorted.length) return '<div class="scl-none">—</div>';
+          return sorted.slice(0,3).map((uid,i)=>`
+            <div class="scl-row ${i===0?'first':''}">
+              <span class="scl-rk">${i+1}</span>
+              <span class="scl-name">${withName(uid)}</span>
+              <span class="scl-val">${moy(uid)} <small>moy</small></span>
+            </div>`).join('');
+        })()}
+      </div>
+
+      <div class="scl-highlights">
+        <div class="scl-hl">
+          <div class="scl-hl-ico">🔥</div>
+          <div class="scl-hl-body"><div class="scl-hl-lbl">Meilleure manche</div>
+            <div class="scl-hl-val">${bestM.uid?`${pseudoById[bestM.uid]} · ${bestM.pts>0?'+':''}${bestM.pts} pts`:'—'}</div></div>
+        </div>
+        <div class="scl-hl">
+          <div class="scl-hl-ico">🏍️</div>
+          <div class="scl-hl-body"><div class="scl-hl-lbl">Pilote chouchou</div>
+            <div class="scl-hl-val">${chouchou?`${pidName[chouchou[0]]||'—'} (${chouchou[1]}×)`:'—'}</div></div>
+        </div>
+        <div class="scl-hl">
+          <div class="scl-hl-ico">⌀</div>
+          <div class="scl-hl-body"><div class="scl-hl-lbl">Moyenne du club</div>
+            <div class="scl-hl-val">${moyClub} pts</div></div>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 async function renderClassement(v){
@@ -2768,7 +2924,7 @@ async function renderClassement(v){
     <div class="card">
       <div class="subnav rank-subnav">
         <button class="sub-btn ${cat==='global'?'active':''}" data-cat="global">Général</button>
-        ${myCats.map(c=>`<button class="sub-btn ${cat===c?'active':''}" data-cat="${c}">${c}</button>`).join('')}
+        ${myCats.map(c=>`<button class="sub-btn ${cat===c?'active':''}" data-cat="${c}">${catLabel(c)}</button>`).join('')}
       </div>
       ${!hasAnyResult ? '<div class="placeholder">Aucun résultat saisi pour le moment. Le classement apparaîtra dès le premier résultat de manche enregistré.</div>'
       : ranked.length===0 ? '<div class="placeholder">Aucun joueur inscrit pour le moment.</div>'
@@ -3163,19 +3319,22 @@ async function renderPronos(v){
   const hasChampTab = !isNations();
   if(!hasChampTab && pronosState.tab==='champ') pronosState.tab = 'manches';
 
-  // sous-onglets : par manche / championnat
+  // sous-onglets : par manche / championnat / stats pros
   v.innerHTML = `
     <div class="subnav">
       <button class="sub-btn ${pronosState.tab==='manches'?'active':''}" id="stManches">Par manche</button>
       ${hasChampTab ? `<button class="sub-btn ${pronosState.tab==='champ'?'active':''}" id="stChamp">Championnat</button>` : ''}
+      <button class="sub-btn ${pronosState.tab==='stats'?'active':''}" id="stStats">Stats pros</button>
     </div>
     <div id="pronoBody"></div>
   `;
   document.getElementById('stManches').onclick = ()=>{ pronosState.tab='manches'; renderPronos(v); };
   const stChamp = document.getElementById('stChamp');
   if(stChamp) stChamp.onclick = ()=>{ pronosState.tab='champ'; renderPronos(v); };
+  document.getElementById('stStats').onclick = ()=>{ pronosState.tab='stats'; renderPronos(v); };
 
   if(pronosState.tab==='champ'){ return renderChampPronos(document.getElementById('pronoBody')); }
+  if(pronosState.tab==='stats'){ return renderStats(document.getElementById('pronoBody')); }
 
   // liste des manches : ouvertes en premier
   const body = document.getElementById('pronoBody');
