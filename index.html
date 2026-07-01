@@ -589,6 +589,8 @@ header::after{
 .cat-tag{font-family:'Archivo Black',sans-serif;font-size:13px;padding:2px 9px;border-radius:6px;color:#fff;background:var(--steel)}
 .cat-450{background:var(--red)}
 .cat-250{background:var(--cyan-deep)}
+.cat-250-West{background:#0d6fa8}
+.cat-250-East{background:#c85a1e}
 .cat-nations{background:linear-gradient(135deg,var(--red),var(--cyan-deep))}
 .cat-mini{background:var(--steel)}
 
@@ -1351,7 +1353,7 @@ const CHAMP_LOGOS = {
 };
 // catégories par championnat (ordre = ordre d'affichage)
 const CHAMP_CATS = {
-  'SXUS':   ['450','250'],
+  'SXUS':   ['450','250 West','250 East','250'],
   'AMA':    ['450','250'],
   'SMX':    ['450','250'],
   'MXGP':   ['450','250'],
@@ -1362,6 +1364,13 @@ const CHAMP_CATS = {
 function isNations(champ){ return (champ||currentChamp) === 'MXdN'; }
 // catégories du championnat courant
 function cats(){ return CHAMP_CATS[currentChamp] || ['450','250']; }
+// classe CSS sûre à partir d'un nom de catégorie ("250 West" -> "250-West")
+function catClass(cat){ return 'cat-' + String(cat||'').replace(/\s+/g,'-'); }
+// libellé affiché d'une catégorie (le "250" de SX US = Showdown East+West)
+function catLabel(cat){
+  if(cat==='250' && currentChamp==='SXUS') return '250 Showdown';
+  return cat;
+}
 // catégories présentes à une manche donnée (Vendée = variable, sinon toutes)
 function mancheCats(manche){
   if(manche && Array.isArray(manche.categories) && manche.categories.length)
@@ -2393,7 +2402,7 @@ async function renderMesPronos(v){
           }
         }
         return `<div class="mp-cat">
-          <span class="cat-tag cat-${pr.categorie}">${pr.categorie}</span>
+          <span class="cat-tag ${catClass(pr.categorie)}">${pr.categorie}</span>
           <span class="mp-podium">🥇 ${l1} · 🥈 ${l2} · 🥉 ${l3}${l5?` · 5e ${l5}`:''}</span>
         </div>${scoreLine}`;
       }).join('');
@@ -2417,7 +2426,7 @@ async function renderMesPronos(v){
     const blocks = cats.map(pc=>{
       const l1=pidName[pc.p1_pilote_id]||'?', l2=pidName[pc.p2_pilote_id]||'?', l3=pidName[pc.p3_pilote_id]||'?';
       const l5= pc.joue_bonus5 ? (pidName[pc.p5_pilote_id]||'?') : null;
-      return `<div class="mp-cat"><span class="cat-tag cat-${pc.categorie}">${pc.categorie}</span>
+      return `<div class="mp-cat"><span class="cat-tag ${catClass(pc.categorie)}">${pc.categorie}</span>
         <span class="mp-podium">🥇 ${l1} · 🥈 ${l2} · 🥉 ${l3}${l5?` · 5e ${l5}`:''}</span></div>`;
     }).join('');
     champCard = `<div class="mp-manche champ">
@@ -2996,19 +3005,19 @@ async function renderStats(v){
   const popShuffled = popList.slice().sort(()=> Math.random()-0.5);
   const popBlock = popShuffled.length ? popShuffled.map(([id,n])=>`
     <div class="stat-row"><span class="stat-dot">•</span>
-      <span class="stat-name">${nameOf(id)} ${catOf(id)?`<span class="cat-mini cat-${catOf(id)}">${catOf(id)}</span>`:''}</span>
+      <span class="stat-name">${nameOf(id)} ${catOf(id)?`<span class="cat-mini ${catClass(catOf(id))}">${catOf(id)}</span>`:''}</span>
       <span class="stat-val">${n}×</span></div>`).join('')
     : '<div class="det-empty">Pas encore de pronostics enregistrés.</div>';
 
   const palmBlock = palmares.length ? palmares.map((p,i)=>`
     <div class="stat-row"><span class="stat-rk">${i+1}</span>
-      <span class="stat-name">${nameOf(p.id)} ${catOf(p.id)?`<span class="cat-mini cat-${catOf(p.id)}">${catOf(p.id)}</span>`:''}</span>
+      <span class="stat-name">${nameOf(p.id)} ${catOf(p.id)?`<span class="cat-mini ${catClass(catOf(p.id))}">${catOf(p.id)}</span>`:''}</span>
       <span class="stat-val">${p.wins>0?`🏆 ${p.wins}`:''} <span class="stat-sub">${p.podiums} pod.</span></span></div>`).join('')
     : '<div class="det-empty">Aucun résultat saisi pour le moment.</div>';
 
   const rapBlock = rapporteurs.length ? rapporteurs.map((p,i)=>`
     <div class="stat-row"><span class="stat-rk">${i+1}</span>
-      <span class="stat-name">${nameOf(p.id)} ${catOf(p.id)?`<span class="cat-mini cat-${catOf(p.id)}">${catOf(p.id)}</span>`:''}</span>
+      <span class="stat-name">${nameOf(p.id)} ${catOf(p.id)?`<span class="cat-mini ${catClass(catOf(p.id))}">${catOf(p.id)}</span>`:''}</span>
       <span class="stat-val">${p.pts} pts</span></div>`).join('')
     : '<div class="det-empty">Pas encore de points distribués.</div>';
 
@@ -3046,6 +3055,18 @@ async function loadPilotes(){
   (data||[]).forEach(p=>{ if(PILOTES[p.categorie]) PILOTES[p.categorie].push(p); });
 }
 function allPilotes(){ return Object.values(PILOTES).flat(); }
+// pilotes disponibles pour une catégorie donnée.
+// Cas Showdown : la catégorie "250" (SX US) réunit les pilotes "250 West" + "250 East".
+function pilotesForCat(cat){
+  if(cat==='250' && currentChamp==='SXUS'){
+    const w = PILOTES['250 West']||[], e = PILOTES['250 East']||[];
+    // dédoublonner par id au cas où, trier par numéro
+    const seen=new Set(), out=[];
+    [...w,...e].forEach(p=>{ if(!seen.has(p.id)){ seen.add(p.id); out.push(p); } });
+    return out.sort((a,b)=> (a.numero||999)-(b.numero||999));
+  }
+  return PILOTES[cat]||[];
+}
 
 function isClosed(manche){
   if(manche.terminee) return true;
@@ -3457,7 +3478,7 @@ async function renderClubPronos(mancheId, manche){
   cats.forEach(c=>{
     const lignes = pronos.filter(p=> p.categorie===c);
     if(!lignes.length) return;
-    const tag = nat ? '<span class="cat-tag cat-nations">🏆 Nations</span>' : `<span class="cat-tag cat-${c}">${c}</span>`;
+    const tag = nat ? '<span class="cat-tag cat-nations">🏆 Nations</span>' : `<span class="cat-tag ${catClass(c)}">${catLabel(c)}</span>`;
     html += `<div class="cp-cat">${tag}</div>`;
     lignes.sort((a,b)=> (pseudo[a.user_id]||'').localeCompare(pseudo[b.user_id]||''));
     lignes.forEach(p=>{
@@ -3476,13 +3497,13 @@ async function renderClubPronos(mancheId, manche){
 
 function podiumBlock(cat, existing, closed){
   const nat = isNations();
-  const pilotes = PILOTES[cat]||[];
+  const pilotes = pilotesForCat(cat);
   const opt = (selId)=> '<option value="">—</option>' + pilotes.map(p=>
     `<option value="${p.id}" ${selId==p.id?'selected':''}>${nat ? p.nom : `#${p.numero||'?'} ${p.nom}`}</option>`).join('');
   const dis = closed ? 'disabled' : '';
   const e = existing||{};
   const titre = nat ? 'Podium des nations' : 'Podium';
-  const tag = nat ? '<span class="cat-tag cat-nations">🏆 Nations</span>' : `<span class="cat-tag cat-${cat}">${cat}</span>`;
+  const tag = nat ? '<span class="cat-tag cat-nations">🏆 Nations</span>' : `<span class="cat-tag ${catClass(cat)}">${catLabel(cat)}</span>`;
   return `
     <div class="podium" data-cat="${cat}">
       <div class="podium-head">${tag} ${titre}</div>
@@ -3664,7 +3685,7 @@ async function renderChampPronos(body){
 }
 
 function champBlock(cat, existing, forceLock){
-  const pilotes = PILOTES[cat]||[];
+  const pilotes = pilotesForCat(cat);
   const e = existing||{};
   const closed = e.valide || forceLock;
   const opt = (selId)=> '<option value="">—</option>' + pilotes.map(p=>
@@ -3672,7 +3693,7 @@ function champBlock(cat, existing, forceLock){
   const dis = closed ? 'disabled' : '';
   return `
     <div class="podium champ" data-cat="${cat}">
-      <div class="podium-head"><span class="cat-tag cat-${cat}">${cat}</span> Podium championnat ${e.valide?'<span class="lock">🔒 figé</span>':''}</div>
+      <div class="podium-head"><span class="cat-tag ${catClass(cat)}">${catLabel(cat)}</span> Podium championnat ${e.valide?'<span class="lock">🔒 figé</span>':''}</div>
       <div class="pod-row"><label>1<sup>er</sup></label><select ${dis} data-pos="p1">${opt(e.p1_pilote_id)}</select></div>
       <div class="pod-row"><label>2<sup>e</sup></label><select ${dis} data-pos="p2">${opt(e.p2_pilote_id)}</select></div>
       <div class="pod-row"><label>3<sup>e</sup></label><select ${dis} data-pos="p3">${opt(e.p3_pilote_id)}</select></div>
@@ -3820,7 +3841,7 @@ async function renderAdminPilotes(body){
       <div class="sec-title" style="font-size:15px;color:var(--cyan)">⏳ Propositions à valider (${proposes.length})</div>
       ${proposes.map(p=>`
         <div class="propos-row" data-id="${p.id}">
-          <span class="propos-info"><b>${nat?'':`#${p.numero??'?'} `}${p.nom}</b><span class="cat-mini cat-${p.categorie}">${p.categorie}</span></span>
+          <span class="propos-info"><b>${nat?'':`#${p.numero??'?'} `}${p.nom}</b><span class="cat-mini ${catClass(p.categorie)}">${p.categorie}</span></span>
           <span class="propos-actions">
             <button class="propos-ok" data-id="${p.id}">Valider</button>
             <button class="propos-no" data-id="${p.id}">Rejeter</button>
@@ -3923,11 +3944,11 @@ async function openResultEntry(mancheId, manche){
 
 function resultBlock(cat, existing){
   const nat = isNations();
-  const pilotes = PILOTES[cat]||[];
+  const pilotes = pilotesForCat(cat);
   const e = existing||{};
   const opt = (selId)=> '<option value="">—</option>' + pilotes.map(p=>
     `<option value="${p.id}" ${selId==p.id?'selected':''}>${nat ? p.nom : `#${p.numero||'?'} ${p.nom}`}</option>`).join('');
-  const tag = nat ? '<span class="cat-tag cat-nations">🏆 Nations</span>' : `<span class="cat-tag cat-${cat}">${cat}</span>`;
+  const tag = nat ? '<span class="cat-tag cat-nations">🏆 Nations</span>' : `<span class="cat-tag ${catClass(cat)}">${catLabel(cat)}</span>`;
   return `
     <div class="podium result" data-cat="${cat}">
       <div class="podium-head">${tag} Podium réel</div>
