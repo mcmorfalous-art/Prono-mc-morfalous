@@ -338,6 +338,23 @@ header::after{
 .pil-us-badges{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:52%}
 .pil-us-edit{color:var(--bone-dim)}
 .pil-editor{margin-top:16px;padding:16px;background:var(--night2);border:2px solid var(--cyan);border-radius:14px}
+/* modale pilote */
+.pil-modal-overlay{position:fixed;inset:0;z-index:200;background:rgba(4,10,18,.75);
+  display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(2px)}
+.pil-modal{background:var(--night2);border:1px solid var(--line2);border-radius:16px;
+  padding:18px;width:100%;max-width:420px;max-height:88vh;overflow-y:auto;position:relative;
+  box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.pm-close{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;
+  background:var(--night);border:1px solid var(--line2);color:var(--bone-dim);font-size:15px;cursor:pointer}
+/* sélecteur de championnat admin */
+.admin-champ-sel{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.admin-champ-sel::-webkit-scrollbar{display:none}
+.acs-btn{flex:0 0 auto;min-width:58px;padding:7px 6px;border:1.5px solid var(--line2);
+  background:var(--night);cursor:pointer;border-radius:9px;display:flex;flex-direction:column;
+  align-items:center;gap:2px;color:var(--bone-dim);font-family:'Archivo Black',sans-serif}
+.acs-btn .acs-ico{font-size:15px}
+.acs-btn .acs-lbl{font-size:8.5px;text-transform:uppercase;white-space:nowrap}
+.acs-btn.active{background:linear-gradient(180deg,var(--cyan),var(--cyan-deep));color:#fff;border-color:var(--cyan)}
 .pe-title{color:#fff;font-family:'Archivo Black',sans-serif;font-size:16px;margin-bottom:14px}
 .pe-ident{display:flex;gap:10px;margin-bottom:16px}
 .pe-field label{color:var(--bone-dim);font-size:11px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.04em}
@@ -3788,13 +3805,26 @@ let adminTab = 'resultats';
 async function renderAdmin(v){
   v.innerHTML = `
     <div class="card">
+      <div class="admin-champ-sel" id="adminChampSel">
+        ${CHAMPS.map(c=>`<button class="acs-btn ${c===currentChamp?'active':''}" data-champ="${c}">
+          <span class="acs-ico">${CHAMP_ICONS[c]||''}</span><span class="acs-lbl">${CHAMP_LABELS[c]||c}</span>
+        </button>`).join('')}
+      </div>
       <div class="subnav">
-        <button class="sub-btn ${adminTab==='resultats'?'active':''}" id="atRes">Résultats</button>
-        <button class="sub-btn ${adminTab==='pilotes'?'active':''}" id="atPil">Pilotes</button>
+        <button class="sub-btn ${adminTab==='resultats'?'active':''}" id="atRes">📝 Résultats</button>
+        <button class="sub-btn ${adminTab==='pilotes'?'active':''}" id="atPil">🏍️ Pilotes</button>
       </div>
       <div id="adminBody"></div>
     </div>
   `;
+  // changer de championnat sans quitter l'admin
+  v.querySelectorAll('.acs-btn').forEach(b=>{
+    b.onclick = ()=>{
+      currentChamp = b.dataset.champ;
+      PILOTES = {}; // recharger les pilotes du nouveau championnat
+      renderAdmin(v);
+    };
+  });
   document.getElementById('atRes').onclick = ()=>{ adminTab='resultats'; renderAdmin(v); };
   document.getElementById('atPil').onclick = ()=>{ adminTab='pilotes'; renderAdmin(v); };
   if(adminTab==='pilotes') return renderAdminPilotes(document.getElementById('adminBody'));
@@ -3891,55 +3921,72 @@ async function renderAdminPilotes(body){
 // ---- Nouveau : admin pilotes famille US ----
 async function renderAdminPilotesUS(body){
   body.innerHTML = `<div class="loading">Chargement…</div>`;
-  // pilotes affichés = fiches (AMA) qui ont au moins une liaison sur le championnat courant
   const [{ data: liens }, { data: fiches }] = await Promise.all([
     sb.from('pilotes_listes').select('pilote_id, championnat, categorie'),
     sb.from('pilotes').select('id, nom, numero, valide').eq('championnat','AMA')
   ]);
   const liensByPilote = {};
   (liens||[]).forEach(l=>{ (liensByPilote[l.pilote_id] = liensByPilote[l.pilote_id]||[]).push(l); });
-  // pilotes présents dans le championnat courant
-  const inChamp = (fiches||[]).filter(f=> (liensByPilote[f.id]||[]).some(l=>l.championnat===currentChamp));
-  inChamp.sort((a,b)=> (a.numero||999)-(b.numero||999));
+  const ficheById = {}; (fiches||[]).forEach(f=> ficheById[f.id]=f);
 
   const badgesFor = (pid)=> (liensByPilote[pid]||[]).map(l=>{
     const lab = l.championnat==='AMA'?'MX':l.championnat==='SXUS'?'SX':'SMX';
     return `<span class="cat-tag ${catClass(l.categorie)}" style="font-size:9px">${lab} ${l.categorie.replace('250 ','')}</span>`;
   }).join('');
 
+  // grouper par catégorie DU CHAMPIONNAT COURANT, trier par numéro
+  const catsCourant = cats(); // ex SX : ['450','250 West','250 East','250']
+  const sections = catsCourant.map(cat=>{
+    // pilotes ayant une liaison sur (currentChamp, cat)  — pour "250" (showdown) on réunit West+East
+    let pilotesCat;
+    if(cat==='250' && currentChamp==='SXUS'){
+      const ids = new Set((liens||[]).filter(l=>l.championnat==='SXUS' && (l.categorie==='250 West'||l.categorie==='250 East')).map(l=>l.pilote_id));
+      pilotesCat = [...ids].map(id=>ficheById[id]).filter(Boolean);
+    } else {
+      const ids = (liens||[]).filter(l=>l.championnat===currentChamp && l.categorie===cat).map(l=>l.pilote_id);
+      pilotesCat = ids.map(id=>ficheById[id]).filter(Boolean);
+    }
+    pilotesCat.sort((a,b)=> (a.numero||999)-(b.numero||999));
+    if(!pilotesCat.length && cat==='250' && currentChamp==='SXUS') return ''; // pas de section showdown vide
+    return `
+      <div class="pil-cat"><span class="cat-tag ${catClass(cat)}">${catLabel(cat)}</span> ${pilotesCat.length} pilote${pilotesCat.length>1?'s':''}</div>
+      <div class="pil-us-list">
+        ${pilotesCat.map(p=>`
+          <button class="pil-us-row" data-id="${p.id}">
+            <span class="pil-us-num">${p.numero!=null?'#'+p.numero:'—'}</span>
+            <span class="pil-us-nom">${(p.nom||'').replace(/</g,'&lt;')}</span>
+            <span class="pil-us-badges">${badgesFor(p.id)}</span>
+            <span class="pil-us-edit">✎</span>
+          </button>`).join('')}
+      </div>`;
+  }).join('');
+
   body.innerHTML = `
-    <div class="sec-title">Gestion des pilotes</div>
-    <p class="sec-sub">Clique sur un pilote pour choisir dans quelles listes il roule.</p>
+    <div class="sec-title">Gestion des pilotes · ${CHAMP_LABELS[currentChamp]}</div>
+    <p class="sec-sub">Clique sur un pilote pour choisir ses listes. Le pilote est partagé entre MX US, SX US et SMX.</p>
     <button class="btn" id="addPiloteUS">+ Ajouter un pilote</button>
-    <div class="pil-us-list">
-      ${inChamp.map(p=>`
-        <button class="pil-us-row" data-id="${p.id}">
-          <span class="pil-us-num">${p.numero!=null?'#'+p.numero:'—'}</span>
-          <span class="pil-us-nom">${(p.nom||'').replace(/</g,'&lt;')}</span>
-          <span class="pil-us-badges">${badgesFor(p.id)}</span>
-          <span class="pil-us-edit">✎</span>
-        </button>`).join('')}
-    </div>
-    <div class="msg" id="pilmsg"></div>
-    <div id="pilEditor"></div>
+    ${sections}
+    <div id="pilModalHost"></div>
   `;
 
   body.querySelectorAll('.pil-us-row').forEach(btn=>{
-    btn.onclick = ()=> openPiloteEditor(+btn.dataset.id, liensByPilote[+btn.dataset.id]||[],
-      (fiches||[]).find(f=>f.id===+btn.dataset.id), body);
+    btn.onclick = ()=> openPiloteEditor(+btn.dataset.id, liensByPilote[+btn.dataset.id]||[], ficheById[+btn.dataset.id], body);
   });
   document.getElementById('addPiloteUS').onclick = ()=> openPiloteEditor(null, [], null, body);
 }
 
-// éditeur d'un pilote (cases à cocher des listes)
+// éditeur d'un pilote — MODALE centrée
 function openPiloteEditor(pid, liens, fiche, body){
-  const ed = document.getElementById('pilEditor');
+  const host = document.getElementById('pilModalHost') || body;
   const has = (champ,cat)=> liens.some(l=>l.championnat===champ && l.categorie===cat);
   const num = fiche ? (fiche.numero??'') : '';
   const nom = fiche ? (fiche.nom||'') : '';
 
-  ed.innerHTML = `
-    <div class="pil-editor">
+  const overlay = document.createElement('div');
+  overlay.className = 'pil-modal-overlay';
+  overlay.innerHTML = `
+    <div class="pil-modal">
+      <button class="pm-close" id="pmClose">✕</button>
       <div class="pe-title">${pid?'Modifier':'Ajouter'} un pilote</div>
       <div class="pe-ident">
         <div class="pe-field pe-num"><label>Numéro</label><input id="peNum" type="number" value="${num}" placeholder="#"></div>
@@ -3963,10 +4010,14 @@ function openPiloteEditor(pid, liens, fiche, body){
       </div>
       <div class="msg" id="peMsg"></div>
     </div>`;
-  ed.scrollIntoView({behavior:'smooth', block:'nearest'});
+  host.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
 
-  // toggle visuel des cases
-  ed.querySelectorAll('.pe-check input').forEach(inp=>{
+  const close = ()=>{ overlay.remove(); document.body.style.overflow=''; };
+  overlay.onclick = (e)=>{ if(e.target===overlay) close(); };
+  document.getElementById('pmClose').onclick = close;
+
+  overlay.querySelectorAll('.pe-check input').forEach(inp=>{
     inp.onchange = ()=> inp.closest('.pe-check').classList.toggle('on', inp.checked);
   });
 
@@ -3976,13 +4027,11 @@ function openPiloteEditor(pid, liens, fiche, body){
     const numero = document.getElementById('peNum').value || null;
     const nomV = document.getElementById('peNom').value.trim();
     if(!nomV) return peMsg('Le nom ne peut pas être vide.', 'err');
-    // listes cochées
-    const checked = [...ed.querySelectorAll('.pe-check input:checked')]
+    const checked = [...overlay.querySelectorAll('.pe-check input:checked')]
       .map(i=>({ championnat:i.dataset.champ, categorie:i.dataset.cat }));
 
     let id = pid;
     if(!id){
-      // nouveau pilote : on crée la fiche (dans AMA, catégorie de référence = première cochée ou 250)
       const refCat = checked.find(c=>c.championnat==='AMA')?.categorie || '250';
       const { data, error } = await sb.from('pilotes')
         .insert({ nom:nomV, numero, categorie:refCat, valide:true, championnat:'AMA' })
@@ -3993,7 +4042,6 @@ function openPiloteEditor(pid, liens, fiche, body){
       const { error } = await sb.from('pilotes').update({ nom:nomV, numero }).eq('id', id);
       if(error) return peMsg(error.message, 'err');
     }
-    // reconstruire les liaisons : supprimer toutes celles du pilote, réinsérer les cochées
     await sb.from('pilotes_listes').delete().eq('pilote_id', id);
     if(checked.length){
       const rows = checked.map(c=>({ pilote_id:id, championnat:c.championnat, categorie:c.categorie }));
@@ -4001,6 +4049,7 @@ function openPiloteEditor(pid, liens, fiche, body){
       if(error) return peMsg(error.message, 'err');
     }
     PILOTES = {};
+    close();
     renderAdminPilotesUS(body);
   };
 
@@ -4011,6 +4060,7 @@ function openPiloteEditor(pid, liens, fiche, body){
     const { error } = await sb.from('pilotes').delete().eq('id', pid);
     if(error) return peMsg(error.message, 'err');
     PILOTES = {};
+    close();
     renderAdminPilotesUS(body);
   };
 }
