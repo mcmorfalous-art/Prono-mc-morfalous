@@ -1954,47 +1954,52 @@ function actusForManche(m, pronos, resByKey){
   return out;
 }
 
-// détecte les mouvements de classement général, manche par manche
+// détecte les mouvements de classement PAR CHAMPIONNAT, manche par manche
 // notedAsc : manches notées triées du plus ANCIEN au plus récent (avec .m)
 // renvoie un objet { mancheId -> [actus de mouvement] }
 function classementMovements(notedAsc, pronos, resByKey, profils, pseudoById){
   const byManche = {}; // mancheId -> actus
-  const totals = {}; profils.forEach(p=> totals[p.id]=0);
-  let prevRank = {}; // uid -> position (1 = leader), avant la manche courante
+  // un total + un classement précédent PAR championnat
+  const totalsByChamp = {};  // champ -> { uid -> points }
+  const prevRankByChamp = {}; // champ -> { uid -> position }
 
-  // classement initial (tout le monde à 0 → on ne classe pas, position indéfinie)
   const rankFrom = (tot)=>{
     const sorted = Object.entries(tot)
       .filter(([uid,v])=> v>0)            // on ne classe que ceux qui ont des points
       .sort((a,b)=> b[1]-a[1]);
     const r={}; sorted.forEach(([uid],i)=> r[uid]=i+1);
-    return { rank:r, sorted };
+    return r;
   };
-  prevRank = rankFrom(totals).rank;
 
   notedAsc.forEach(({m})=>{
-    // appliquer les scores de cette manche
+    const champ = m.championnat;
+    const champLbl = CHAMP_LABELS[champ]||champ;
+    // init des structures pour ce championnat
+    if(!totalsByChamp[champ]){
+      totalsByChamp[champ] = {}; profils.forEach(p=> totalsByChamp[champ][p.id]=0);
+      prevRankByChamp[champ] = {};
+    }
+    const totals = totalsByChamp[champ];
+    const prevRank = prevRankByChamp[champ];
+
+    // appliquer les scores de cette manche au classement de SON championnat
     pronos.filter(pr=> pr.manche_id===m.id).forEach(pr=>{
       const res = resByKey[pr.manche_id+'-'+pr.categorie];
       if(res && totals[pr.user_id]!==undefined) totals[pr.user_id]+=scoreManche(pr,res);
     });
-    const { rank:newRank } = rankFrom(totals);
+    const newRank = rankFrom(totals);
     const acts = [];
-    const champLbl = CHAMP_LABELS[m.championnat]||m.championnat;
 
     Object.keys(newRank).forEach(uid=>{
-      const np = newRank[uid];          // nouvelle position
-      const op = prevRank[uid];          // ancienne position (peut être undefined si nouveau)
+      const np = newRank[uid];          // nouvelle position dans ce championnat
+      const op = prevRank[uid];          // ancienne position (undefined si nouveau)
       const pseudo = pseudoById[uid]||'Joueur';
-      // nouveau leader
       if(np===1 && op!==1){
         acts.push({type:'leader', uid, pseudo, manche:m.nom, champ:champLbl, ordre:m.ordre});
       }
-      // entrée dans le top 3 (mais pas leader, déjà couvert)
       else if(np<=3 && (op===undefined || op>3)){
         acts.push({type:'top3', uid, pseudo, place:np, manche:m.nom, champ:champLbl, ordre:m.ordre});
       }
-      // grosse remontée (+3) ou chute (-3) — seulement si l'ancienne position existait
       else if(op!==undefined){
         const delta = op - np; // >0 = remontée
         if(delta>=3){
@@ -2006,7 +2011,7 @@ function classementMovements(notedAsc, pronos, resByKey, profils, pseudoById){
     });
 
     if(acts.length) byManche[m.id] = acts;
-    prevRank = newRank;
+    prevRankByChamp[champ] = newRank;
   });
   return byManche;
 }
@@ -2077,10 +2082,10 @@ function fmtCats(cats){
 // transforme une actu en texte + icône
 function actuText(a){
   switch(a.type){
-    case 'leader': return {ico:'👑', html:`<b>${a.pseudo}</b> prend la <b>tête du classement général</b> !`};
-    case 'top3':   return {ico:'🏅', html:`<b>${a.pseudo}</b> entre dans le <b>top 3</b> (${a.place}e au général)`};
-    case 'up':     return {ico:'📈', html:`<b>${a.pseudo}</b> remonte de <b>${a.delta} places</b> au général (${a.place}e)`};
-    case 'down':   return {ico:'📉', html:`<b>${a.pseudo}</b> chute de <b>${a.delta} places</b> au général (${a.place}e)`};
+    case 'leader': return {ico:'👑', html:`<b>${a.pseudo}</b> prend la <b>tête du classement ${a.champ}</b> !`};
+    case 'top3':   return {ico:'🏅', html:`<b>${a.pseudo}</b> entre dans le <b>top 3</b> du ${a.champ} (${a.place}e)`};
+    case 'up':     return {ico:'📈', html:`<b>${a.pseudo}</b> remonte de <b>${a.delta} places</b> au ${a.champ} (${a.place}e)`};
+    case 'down':   return {ico:'📉', html:`<b>${a.pseudo}</b> chute de <b>${a.delta} places</b> au ${a.champ} (${a.place}e)`};
     case 'top_score': return {ico:'🔥', html:`<b>${a.pseudo}</b> a marqué <b>${a.pts} pts</b> sur ${a.manche} <span class="ac-champ">${a.champ}</span>`};
     case 'parfait':   return {ico:'🎯', html:`<b>${a.pseudo}</b> a réussi un <b>podium parfait</b> (${a.cat}) sur ${a.manche} <span class="ac-champ">${a.champ}</span>`};
     case 'cinq': {
