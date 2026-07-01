@@ -3046,13 +3046,32 @@ async function renderStats(v){
 
 // ====== DONNÉES partagées ======
 let PILOTES = {}; // { categorie: [...] } dynamique selon le championnat
+// championnats migrés vers le système "fiche unique + listes" (pilotes_listes)
+const CHAMPS_LISTES = ['AMA','SXUS','SMX'];
 
 async function loadPilotes(){
   if(Object.keys(PILOTES).length) return;
   cats().forEach(c=> PILOTES[c]=[]);
-  const { data } = await sb.from('pilotes').select('*').eq('actif', true).eq('valide', true)
-    .eq('championnat', currentChamp).order('numero');
-  (data||[]).forEach(p=>{ if(PILOTES[p.categorie]) PILOTES[p.categorie].push(p); });
+
+  if(CHAMPS_LISTES.includes(currentChamp)){
+    // nouveau système : liaisons pilotes_listes -> pilotes
+    const { data } = await sb.from('pilotes_listes')
+      .select('categorie, pilotes!inner(id, nom, numero, actif, valide)')
+      .eq('championnat', currentChamp);
+    (data||[]).forEach(row=>{
+      const p = row.pilotes;
+      if(!p || !p.actif || !p.valide) return;
+      if(!PILOTES[row.categorie]) PILOTES[row.categorie]=[];
+      PILOTES[row.categorie].push(p);
+    });
+    // trier chaque catégorie par numéro
+    Object.keys(PILOTES).forEach(c=> PILOTES[c].sort((a,b)=> (a.numero||999)-(b.numero||999)));
+  } else {
+    // ancien système : pilotes filtrés par championnat (MXGP, Vendée, MXdN)
+    const { data } = await sb.from('pilotes').select('*').eq('actif', true).eq('valide', true)
+      .eq('championnat', currentChamp).order('numero');
+    (data||[]).forEach(p=>{ if(PILOTES[p.categorie]) PILOTES[p.categorie].push(p); });
+  }
 }
 function allPilotes(){ return Object.values(PILOTES).flat(); }
 // pilotes disponibles pour une catégorie donnée.
