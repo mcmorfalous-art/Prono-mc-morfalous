@@ -332,6 +332,11 @@ header::after{
 .champ-switch{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;
   scrollbar-width:none;padding-bottom:2px}
 .champ-switch::-webkit-scrollbar{display:none}
+.champ-switch-wrap{position:relative}
+.switch-fade{position:absolute;top:0;right:0;bottom:12px;width:38px;pointer-events:none;
+  display:flex;align-items:center;justify-content:flex-end;padding-right:4px;
+  background:linear-gradient(90deg, transparent, var(--night2) 70%);
+  color:var(--cyan);font-size:22px;font-weight:700;transition:opacity .2s ease}
 .champ-switch .champ-btn{flex:0 0 auto;min-width:62px;padding:8px 8px;border:1.5px solid var(--line2);
   background:var(--night);cursor:pointer;border-radius:10px;
   display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--bone-dim);
@@ -1472,6 +1477,21 @@ async function renderChampPicker(){
   }catch(e){}
   const metaFor = c => c==='MXdN' ? '1 épreuve' : c==='SMX' ? '3 playoffs' : `${counts[c]||0} manche${(counts[c]||0)>1?'s':''}`;
 
+  // date de la dernière manche de chaque championnat (pour trier les fermés récent→ancien)
+  const lastDate = {};
+  manches.forEach(m=>{
+    if(!m.closes_at) return;
+    const t = new Date(m.closes_at).getTime();
+    if(!lastDate[m.championnat] || t > lastDate[m.championnat]) lastDate[m.championnat] = t;
+  });
+  // ordre d'affichage : ouverts d'abord (dans l'ordre CHAMPS), puis fermés du + récemment fermé au + ancien
+  const orderedChamps = CHAMPS.slice().sort((a,b)=>{
+    const da = !!CHAMP_TERMINE[a], db = !!CHAMP_TERMINE[b];
+    if(da !== db) return da ? 1 : -1;          // ouverts avant fermés
+    if(da && db) return (lastDate[b]||0) - (lastDate[a]||0); // fermés : récent d'abord
+    return CHAMPS.indexOf(a) - CHAMPS.indexOf(b); // ouverts : ordre naturel
+  });
+
   // rappel : manches qui ferment dans moins de 12h
   const now=Date.now(), H12=12*3600*1000;
   const soon = manches
@@ -1513,7 +1533,7 @@ async function renderChampPicker(){
     ${brefHtml}
     <div class="home-section-lbl">Choisis ton championnat <span class="hsl-saison">· Saison 2026</span></div>
     <div class="champ-cards">
-      ${CHAMPS.map((c,i)=>`
+      ${orderedChamps.map((c,i)=>`
         <button class="champ-card ${CHAMP_TERMINE[c]?'is-done':''}" data-champ="${c}" style="animation-delay:${i*0.07}s">
           ${CHAMP_TERMINE[c]?'<span class="cc-done">Terminé</span>':''}
           <span class="cc-pastille">${CHAMP_LOGOS[c]?`<img src="${CHAMP_LOGOS[c]}" alt="${CHAMP_LABELS[c]}">`:`<span class="cc-emoji">${CHAMP_ICONS[c]||''}</span>`}</span>
@@ -1553,8 +1573,11 @@ function renderChampInner(){
       <p class="smx-dates"><b>Playoff 1</b> · 12 sept &nbsp;—&nbsp; <b>Playoff 2</b> · 19 sept &nbsp;—&nbsp; <b>Final</b> · 26 sept</p>
     </div>` : '';
   host.innerHTML = `
-    <div class="champ-switch" id="champSwitch">
-      ${CHAMPS.map(c=>`<button class="champ-btn ${c===currentChamp?'active':''}" data-champ="${c}"><span class="champ-ico">${CHAMP_ICONS[c]||''}</span><span class="champ-lbl">${CHAMP_LABELS[c]||c}</span></button>`).join('')}
+    <div class="champ-switch-wrap">
+      <div class="champ-switch" id="champSwitch">
+        ${CHAMPS.map(c=>`<button class="champ-btn ${c===currentChamp?'active':''}" data-champ="${c}"><span class="champ-ico">${CHAMP_ICONS[c]||''}</span><span class="champ-lbl">${CHAMP_LABELS[c]||c}</span></button>`).join('')}
+      </div>
+      <span class="switch-fade" id="switchFade">›</span>
     </div>
     ${smxInfo}
     <nav class="nav" id="nav">
@@ -1563,6 +1586,20 @@ function renderChampInner(){
       <button class="nav-btn ${currentView==='classement'?'active':''}" data-view="classement">Classement</button>
     </nav>
   `;
+  // centrer le championnat actif dans la barre + masquer la flèche quand on arrive au bout
+  const sw = document.getElementById('champSwitch');
+  const fade = document.getElementById('switchFade');
+  if(sw){
+    const act = sw.querySelector('.champ-btn.active');
+    if(act) act.scrollIntoView({inline:'center', block:'nearest'});
+    const updateFade = ()=>{
+      if(!fade) return;
+      const atEnd = sw.scrollLeft + sw.clientWidth >= sw.scrollWidth - 4;
+      fade.style.opacity = atEnd ? '0' : '1';
+    };
+    sw.addEventListener('scroll', updateFade);
+    setTimeout(updateFade, 60);
+  }
   host.querySelectorAll('.champ-btn').forEach(b=>{
     b.onclick = ()=>{
       currentChamp = b.dataset.champ;
