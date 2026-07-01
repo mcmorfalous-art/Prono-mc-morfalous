@@ -328,6 +328,36 @@ header::after{
 .done-toggle input{width:18px;height:18px;flex-shrink:0;accent-color:var(--cyan);cursor:pointer}
 .done-toggle b{color:#fff}
 
+/* admin pilotes US (fiche unique + listes) */
+.pil-us-list{display:flex;flex-direction:column;gap:7px;margin-top:12px}
+.pil-us-row{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;
+  background:var(--night);border:1px solid var(--line2);border-radius:10px;cursor:pointer;text-align:left}
+.pil-us-row:hover{background:#0d2030}
+.pil-us-num{font-family:'Archivo Black',sans-serif;color:var(--cyan);font-size:13px;min-width:38px}
+.pil-us-nom{color:#fff;flex:1;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px}
+.pil-us-badges{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:52%}
+.pil-us-edit{color:var(--bone-dim)}
+.pil-editor{margin-top:16px;padding:16px;background:var(--night2);border:2px solid var(--cyan);border-radius:14px}
+.pe-title{color:#fff;font-family:'Archivo Black',sans-serif;font-size:16px;margin-bottom:14px}
+.pe-ident{display:flex;gap:10px;margin-bottom:16px}
+.pe-field label{color:var(--bone-dim);font-size:11px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.04em}
+.pe-field input{width:100%;padding:9px;background:var(--night);border:1px solid var(--line2);border-radius:8px;color:#fff;font-size:15px;margin-top:3px}
+.pe-num{flex:0 0 80px}.pe-nom{flex:1}
+.pe-lbl{color:var(--bone-dim);font-size:11px;font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.pe-grp{margin-bottom:14px}
+.pe-grp-title{color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;margin-bottom:6px}
+.pe-checks{display:flex;gap:8px;flex-wrap:wrap}
+.pe-check{display:flex;align-items:center;gap:6px;padding:7px 12px;background:var(--night);
+  border:1px solid var(--line2);border-radius:8px;color:var(--bone);font-size:13px;cursor:pointer}
+.pe-check.on{background:#12304a;border-color:var(--cyan);color:#fff}
+.pe-check input{accent-color:var(--cyan);cursor:pointer}
+.pe-actions{display:flex;gap:8px;margin-top:16px}
+.pe-save{flex:1;padding:11px;background:linear-gradient(180deg,var(--green),#1f7a38);color:#fff;
+  border:none;border-radius:10px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;
+  text-transform:uppercase;cursor:pointer}
+.pe-del{padding:11px 16px;background:var(--steel);color:var(--red);border:1px solid var(--red);
+  border-radius:10px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;cursor:pointer}
+
 /* barre de switch rapide (dans un championnat) */
 .champ-switch{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;
   scrollbar-width:none;padding-bottom:2px}
@@ -3841,7 +3871,152 @@ async function renderAdminResultats(body){
 }
 
 // ====== ADMIN · PILOTES (ajouter / modifier) ======
+// Familles US (AMA/SXUS/SMX) : système "fiche unique + listes" (cases à cocher)
+// Autres (MXGP/Vendée/MXdN) : ancien système inchangé
+
+// définition des listes cochables pour la famille US
+const US_LISTES = [
+  { champ:'AMA',  label:'MX US',  ico:'🇺🇸', cats:['450','250'] },
+  { champ:'SXUS', label:'SX US',  ico:'🏟️', cats:['450','250 West','250 East'] },
+  { champ:'SMX',  label:'SMX',    ico:'⭐',  cats:['450','250'] },
+];
+
 async function renderAdminPilotes(body){
+  if(CHAMPS_LISTES.includes(currentChamp)){
+    return renderAdminPilotesUS(body);
+  }
+  return renderAdminPilotesClassic(body);
+}
+
+// ---- Nouveau : admin pilotes famille US ----
+async function renderAdminPilotesUS(body){
+  body.innerHTML = `<div class="loading">Chargement…</div>`;
+  // pilotes affichés = fiches (AMA) qui ont au moins une liaison sur le championnat courant
+  const [{ data: liens }, { data: fiches }] = await Promise.all([
+    sb.from('pilotes_listes').select('pilote_id, championnat, categorie'),
+    sb.from('pilotes').select('id, nom, numero, valide').eq('championnat','AMA')
+  ]);
+  const liensByPilote = {};
+  (liens||[]).forEach(l=>{ (liensByPilote[l.pilote_id] = liensByPilote[l.pilote_id]||[]).push(l); });
+  // pilotes présents dans le championnat courant
+  const inChamp = (fiches||[]).filter(f=> (liensByPilote[f.id]||[]).some(l=>l.championnat===currentChamp));
+  inChamp.sort((a,b)=> (a.numero||999)-(b.numero||999));
+
+  const badgesFor = (pid)=> (liensByPilote[pid]||[]).map(l=>{
+    const lab = l.championnat==='AMA'?'MX':l.championnat==='SXUS'?'SX':'SMX';
+    return `<span class="cat-tag ${catClass(l.categorie)}" style="font-size:9px">${lab} ${l.categorie.replace('250 ','')}</span>`;
+  }).join('');
+
+  body.innerHTML = `
+    <div class="sec-title">Gestion des pilotes</div>
+    <p class="sec-sub">Clique sur un pilote pour choisir dans quelles listes il roule.</p>
+    <button class="btn" id="addPiloteUS">+ Ajouter un pilote</button>
+    <div class="pil-us-list">
+      ${inChamp.map(p=>`
+        <button class="pil-us-row" data-id="${p.id}">
+          <span class="pil-us-num">${p.numero!=null?'#'+p.numero:'—'}</span>
+          <span class="pil-us-nom">${(p.nom||'').replace(/</g,'&lt;')}</span>
+          <span class="pil-us-badges">${badgesFor(p.id)}</span>
+          <span class="pil-us-edit">✎</span>
+        </button>`).join('')}
+    </div>
+    <div class="msg" id="pilmsg"></div>
+    <div id="pilEditor"></div>
+  `;
+
+  body.querySelectorAll('.pil-us-row').forEach(btn=>{
+    btn.onclick = ()=> openPiloteEditor(+btn.dataset.id, liensByPilote[+btn.dataset.id]||[],
+      (fiches||[]).find(f=>f.id===+btn.dataset.id), body);
+  });
+  document.getElementById('addPiloteUS').onclick = ()=> openPiloteEditor(null, [], null, body);
+}
+
+// éditeur d'un pilote (cases à cocher des listes)
+function openPiloteEditor(pid, liens, fiche, body){
+  const ed = document.getElementById('pilEditor');
+  const has = (champ,cat)=> liens.some(l=>l.championnat===champ && l.categorie===cat);
+  const num = fiche ? (fiche.numero??'') : '';
+  const nom = fiche ? (fiche.nom||'') : '';
+
+  ed.innerHTML = `
+    <div class="pil-editor">
+      <div class="pe-title">${pid?'Modifier':'Ajouter'} un pilote</div>
+      <div class="pe-ident">
+        <div class="pe-field pe-num"><label>Numéro</label><input id="peNum" type="number" value="${num}" placeholder="#"></div>
+        <div class="pe-field pe-nom"><label>Nom</label><input id="peNom" type="text" value="${String(nom).replace(/"/g,'&quot;')}" placeholder="Nom complet"></div>
+      </div>
+      <div class="pe-lbl">Dans quelles listes roule-t-il ?</div>
+      ${US_LISTES.map(g=>`
+        <div class="pe-grp">
+          <div class="pe-grp-title">${g.ico} ${g.label}</div>
+          <div class="pe-checks">
+            ${g.cats.map(c=>`
+              <label class="pe-check ${has(g.champ,c)?'on':''}">
+                <input type="checkbox" data-champ="${g.champ}" data-cat="${c}" ${has(g.champ,c)?'checked':''}>
+                ${c}
+              </label>`).join('')}
+          </div>
+        </div>`).join('')}
+      <div class="pe-actions">
+        <button class="pe-save" id="peSave">Enregistrer</button>
+        ${pid?'<button class="pe-del" id="peDel">Supprimer</button>':''}
+      </div>
+      <div class="msg" id="peMsg"></div>
+    </div>`;
+  ed.scrollIntoView({behavior:'smooth', block:'nearest'});
+
+  // toggle visuel des cases
+  ed.querySelectorAll('.pe-check input').forEach(inp=>{
+    inp.onchange = ()=> inp.closest('.pe-check').classList.toggle('on', inp.checked);
+  });
+
+  const peMsg = (t,type)=>{ const m=document.getElementById('peMsg'); if(m){ m.textContent=t; m.className='msg show '+type; } };
+
+  document.getElementById('peSave').onclick = async ()=>{
+    const numero = document.getElementById('peNum').value || null;
+    const nomV = document.getElementById('peNom').value.trim();
+    if(!nomV) return peMsg('Le nom ne peut pas être vide.', 'err');
+    // listes cochées
+    const checked = [...ed.querySelectorAll('.pe-check input:checked')]
+      .map(i=>({ championnat:i.dataset.champ, categorie:i.dataset.cat }));
+
+    let id = pid;
+    if(!id){
+      // nouveau pilote : on crée la fiche (dans AMA, catégorie de référence = première cochée ou 250)
+      const refCat = checked.find(c=>c.championnat==='AMA')?.categorie || '250';
+      const { data, error } = await sb.from('pilotes')
+        .insert({ nom:nomV, numero, categorie:refCat, valide:true, championnat:'AMA' })
+        .select('id').single();
+      if(error) return peMsg(error.message, 'err');
+      id = data.id;
+    } else {
+      const { error } = await sb.from('pilotes').update({ nom:nomV, numero }).eq('id', id);
+      if(error) return peMsg(error.message, 'err');
+    }
+    // reconstruire les liaisons : supprimer toutes celles du pilote, réinsérer les cochées
+    await sb.from('pilotes_listes').delete().eq('pilote_id', id);
+    if(checked.length){
+      const rows = checked.map(c=>({ pilote_id:id, championnat:c.championnat, categorie:c.categorie }));
+      const { error } = await sb.from('pilotes_listes').insert(rows);
+      if(error) return peMsg(error.message, 'err');
+    }
+    PILOTES = {};
+    renderAdminPilotesUS(body);
+  };
+
+  const del = document.getElementById('peDel');
+  if(del) del.onclick = async ()=>{
+    if(!confirm('Supprimer ce pilote et toutes ses listes ?')) return;
+    await sb.from('pilotes_listes').delete().eq('pilote_id', pid);
+    const { error } = await sb.from('pilotes').delete().eq('id', pid);
+    if(error) return peMsg(error.message, 'err');
+    PILOTES = {};
+    renderAdminPilotesUS(body);
+  };
+}
+
+// ---- Ancien : admin pilotes classique (MXGP/Vendée/MXdN) ----
+async function renderAdminPilotesClassic(body){
   body.innerHTML = `<div class="loading">Chargement…</div>`;
   const nat = isNations();
   const { data: pilotes } = await sb.from('pilotes').select('*').eq('championnat', currentChamp).order('categorie').order('numero');
@@ -3873,7 +4048,7 @@ async function renderAdminPilotes(body){
     <p class="sec-sub">Valide les propositions des joueurs, modifie ou ajoute ${nat?'des pays':'des pilotes'}.</p>
     ${proposBlock}
     ${cats().map(c=>`
-      <div class="pil-cat"><span class="cat-tag ${nat?'cat-nations':'cat-'+c}">${nat?'🏆 Nations':c}</span> ${valides.filter(p=>p.categorie===c).length} ${nat?'pays':'pilotes'}</div>
+      <div class="pil-cat"><span class="cat-tag ${nat?'cat-nations':catClass(c)}">${nat?'🏆 Nations':c}</span> ${valides.filter(p=>p.categorie===c).length} ${nat?'pays':'pilotes'}</div>
       <div class="pil-list">${list(c)}</div>
     `).join('')}
     <div class="pil-add">
@@ -3888,19 +4063,18 @@ async function renderAdminPilotes(body){
     <div class="msg" id="pilmsg"></div>
   `;
 
-  // valider / rejeter propositions
   body.querySelectorAll('.propos-ok').forEach(btn=>{
     btn.onclick = async ()=>{
       const { error } = await sb.from('pilotes').update({ valide:true }).eq('id', +btn.dataset.id);
       if(error) return showPilMsg(error.message,'err');
-      PILOTES={}; renderAdminPilotes(body);
+      PILOTES={}; renderAdminPilotesClassic(body);
     };
   });
   body.querySelectorAll('.propos-no').forEach(btn=>{
     btn.onclick = async ()=>{
       const { error } = await sb.from('pilotes').delete().eq('id', +btn.dataset.id);
       if(error) return showPilMsg(error.message,'err');
-      renderAdminPilotes(body);
+      renderAdminPilotesClassic(body);
     };
   });
 
@@ -3932,7 +4106,7 @@ async function renderAdminPilotes(body){
       return showPilMsg(error.message, 'err');
     }
     PILOTES = {};
-    renderAdminPilotes(body);
+    renderAdminPilotesClassic(body);
   };
 }
 
