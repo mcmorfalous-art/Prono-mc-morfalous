@@ -1490,10 +1490,10 @@ async function renderChampPicker(){
   if(brefBtn) brefBtn.onclick = ()=> openGlobalView('enbref');
 
   // remplir le résumé En bref
-  computeActus().then(({flat})=>{
+  computeActus().then(({home})=>{
     const list=document.getElementById('hbList'); if(!list) return;
-    if(!flat.length){ list.innerHTML=`<div class="hb-empty">Pas encore d'actu — reviens après les prochains résultats !</div>`; return; }
-    list.innerHTML = flat.slice(0,3).map(a=>{
+    if(!home.length){ list.innerHTML=`<div class="hb-empty">Pas encore d'actu — reviens après les prochains résultats !</div>`; return; }
+    list.innerHTML = home.map(a=>{
       const t=actuText(a);
       return `<div class="hb-item"><span class="hb-iico">${t.ico}</span><span class="hb-itxt">${t.html}</span></div>`;
     }).join('');
@@ -2002,9 +2002,9 @@ function classementMovements(notedAsc, pronos, resByKey, profils, pseudoById){
       }
       else if(op!==undefined){
         const delta = op - np; // >0 = remontée
-        if(delta>=3){
+        if(delta>=2){
           acts.push({type:'up', uid, pseudo, delta, place:np, manche:m.nom, champ:champLbl, ordre:m.ordre});
-        } else if(delta<=-3){
+        } else if(delta<=-2){
           acts.push({type:'down', uid, pseudo, delta:-delta, place:np, manche:m.nom, champ:champLbl, ordre:m.ordre});
         }
       }
@@ -2067,8 +2067,34 @@ async function computeActus(){
 
   // liste à plat (pour l'accueil : les plus fraîches)
   const flat = weeks.flatMap(w=> w.actus);
-  _actusCache = { weeks, flat };
+  // sélection panachée pour l'accueil (3 actus de genres différents, semaine en cours)
+  const home = pickHomeActus(weeks[0] ? weeks[0].actus : []);
+  _actusCache = { weeks, flat, home };
   return _actusCache;
+}
+
+// sélectionne jusqu'à 3 actus VARIÉES pour l'accueil, à partir des actus d'une semaine
+function pickHomeActus(actus){
+  const picked = [];
+  const used = new Set();
+  const takeFirst = (pred)=>{
+    const idx = actus.findIndex((a,i)=> !used.has(i) && pred(a));
+    if(idx>=0){ used.add(idx); picked.push(actus[idx]); return true; }
+    return false;
+  };
+  // 1) LE TOP : nouveau leader s'il existe, sinon meilleur score du week-end
+  if(!takeFirst(a=> a.type==='leader')){
+    takeFirst(a=> a.type==='top_score');
+  }
+  // 2) UN MOUVEMENT DE PLACE : remontée ou chute (≥2, déjà filtré à la détection)
+  takeFirst(a=> a.type==='up' || a.type==='down');
+  // 3) UN BONUS 5e : réussi ou raté (type 'cinq')
+  takeFirst(a=> a.type==='cinq');
+  // COMBLER si moins de 3 : prendre les meilleures actus restantes (déjà triées par priorité)
+  for(let i=0; i<actus.length && picked.length<3; i++){
+    if(!used.has(i)){ used.add(i); picked.push(actus[i]); }
+  }
+  return picked;
 }
 
 // formate une liste de catégories : ["450","250"] -> "le 450 et le 250"
