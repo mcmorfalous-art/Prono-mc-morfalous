@@ -337,6 +337,16 @@ header::after{
 .done-toggle input{width:18px;height:18px;flex-shrink:0;accent-color:var(--cyan);cursor:pointer}
 .done-toggle b{color:#fff}
 
+/* admin : bloc classement final du championnat */
+.champ-final-box{background:var(--night);border:1px solid var(--cyan);border-radius:14px;
+  padding:14px 14px 16px;margin-bottom:18px}
+.cfb-head{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:#fff;
+  text-transform:uppercase;letter-spacing:.02em;display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.cfb-sub{font-size:12.5px;color:var(--bone-dim);margin:0 0 12px;line-height:1.4}
+.cfb-sub b{color:var(--bone)}
+.admin-manches-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--bone-dim);margin:4px 2px 10px}
+
 /* admin pilotes US (fiche unique + listes) */
 .pil-us-list{display:flex;flex-direction:column;gap:7px;margin-top:12px}
 .pil-us-row{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;
@@ -4085,6 +4095,10 @@ async function renderAdminResultats(body){
     termine = !!(data && data.termine);
   }catch(e){}
 
+  // classement final officiel déjà saisi (resultat_championnat)
+  const { data: rchampExist } = await sb.from('resultat_championnat').select('*').eq('championnat', currentChamp);
+  const rchampByCat = {}; (rchampExist||[]).forEach(r=> rchampByCat[r.categorie]=r);
+
   const rows = (manches||[]).map(m=>{
     const mc = mancheCats(m);
     const done = mc.filter(c=> resSet.has(m.id+'-'+c)).length;
@@ -4104,6 +4118,25 @@ async function renderAdminResultats(body){
     </div>`;
   }).join('');
 
+  // bloc "classement final du championnat" (sauf MXdN qui n'a pas de prono championnat)
+  const showChampFinal = !isNations();
+  let champFinalBlock = '';
+  if(showChampFinal){
+    const catBlocks = cats().map(c=> resultChampBlock(c, rchampByCat[c])).join('');
+    const savedCount = cats().filter(c=> rchampByCat[c]).length;
+    const stateTag = savedCount===cats().length ? '<span class="tag-done2">✓ saisi</span>'
+                   : savedCount>0 ? '<span class="tag-partial">partiel</span>'
+                   : '<span class="tag-none">à saisir</span>';
+    champFinalBlock = `
+      <div class="champ-final-box">
+        <div class="cfb-head">🏆 Classement FINAL du championnat ${stateTag}</div>
+        <p class="cfb-sub">Le podium officiel de fin de saison. C'est lui qui attribue les points des <b>pronos championnat</b>.</p>
+        ${catBlocks}
+        <div class="msg" id="rcmsg"></div>
+        <button class="btn" id="saveResChamp">Enregistrer le classement final</button>
+      </div>`;
+  }
+
   body.innerHTML = `
     <div class="sec-title">Saisie des résultats</div>
     <p class="sec-sub">Clique sur une manche pour entrer le podium réel. Le bouton "Annuler" marque une épreuve non courue.</p>
@@ -4111,6 +4144,8 @@ async function renderAdminResultats(body){
       <input type="checkbox" id="champDone" ${termine?'checked':''}>
       <span>Championnat <b>${CHAMP_LABELS[currentChamp]||currentChamp}</b> terminé (affiche "Terminé" sur l'accueil)</span>
     </label>
+    ${champFinalBlock}
+    <div class="admin-manches-lbl">Résultats par manche</div>
     ${rows}
   `;
   const doneChk = document.getElementById('champDone');
@@ -4137,7 +4172,69 @@ async function renderAdminResultats(body){
       renderAdminResultats(body);
     };
   });
+  // classement final championnat
+  if(showChampFinal){
+    cats().forEach(c=> setupResultChamp(c));
+    const sc = document.getElementById('saveResChamp');
+    if(sc) sc.onclick = ()=> saveResultChamp(body);
+  }
 }
+
+function resultChampBlock(cat, existing){
+  const pilotes = pilotesForCat(cat);
+  const e = existing||{};
+  const opt = (selId)=> '<option value="">—</option>' + pilotes.map(p=>
+    `<option value="${p.id}" ${selId==p.id?'selected':''}>#${p.numero||'?'} ${p.nom}</option>`).join('');
+  return `
+    <div class="podium reschamp" data-cat="${cat}">
+      <div class="podium-head"><span class="cat-tag ${catClass(cat)}">${catLabel(cat)}</span> Podium final</div>
+      <div class="pod-row"><label>1<sup>er</sup></label><select data-pos="p1">${opt(e.p1_pilote_id)}</select></div>
+      <div class="pod-row"><label>2<sup>e</sup></label><select data-pos="p2">${opt(e.p2_pilote_id)}</select></div>
+      <div class="pod-row"><label>3<sup>e</sup></label><select data-pos="p3">${opt(e.p3_pilote_id)}</select></div>
+      <div class="pod-row"><label>5<sup>e</sup></label><select data-pos="p5">${opt(e.p5_pilote_id)}</select></div>
+    </div>
+  `;
+}
+
+function setupResultChamp(cat){
+  const block = document.querySelector(`.podium.reschamp[data-cat="${cat}"]`);
+  if(!block) return;
+  const selects = [...block.querySelectorAll('select[data-pos]')];
+  const refresh = ()=>{
+    const chosen = selects.map(s=>s.value).filter(Boolean);
+    selects.forEach(s=>{
+      [...s.options].forEach(o=>{
+        if(!o.value) return;
+        o.disabled = chosen.includes(o.value) && s.value !== o.value;
+      });
+    });
+  };
+  selects.forEach(s=> s.onchange = refresh);
+  refresh();
+}
+
+async function saveResultChamp(body){
+  const rows = [];
+  for(const cat of cats()){
+    const block = document.querySelector(`.podium.reschamp[data-cat="${cat}"]`);
+    if(!block) continue;
+    const get = pos => block.querySelector(`select[data-pos="${pos}"]`).value || null;
+    const p1=get('p1'), p2=get('p2'), p3=get('p3'), p5=get('p5');
+    if(p1||p2||p3||p5){
+      if(!(p1&&p2&&p3)) return showRCMsg(`Complète au moins le podium ${cat} (1er, 2e, 3e).`, 'err');
+      rows.push({ championnat: currentChamp, categorie: cat,
+        p1_pilote_id:p1, p2_pilote_id:p2, p3_pilote_id:p3, p5_pilote_id:p5, updated_at:new Date().toISOString() });
+    }
+  }
+  if(!rows.length) return showRCMsg("Saisis au moins un podium final.", 'err');
+  showRCMsg("Enregistrement…", 'ok');
+  const { error } = await sb.from('resultat_championnat').upsert(rows, { onConflict:'championnat,categorie' });
+  if(error) return showRCMsg(error.message, 'err');
+  showRCMsg("✓ Classement final enregistré ! Les points des pronos championnat sont attribués.", 'ok');
+  setTimeout(()=> renderAdminResultats(body), 1400);
+}
+
+function showRCMsg(t,type){ const m=document.getElementById('rcmsg'); if(m){ m.textContent=t; m.className='msg show '+type; } }
 
 // ====== ADMIN · PILOTES (ajouter / modifier) ======
 // Familles US (AMA/SXUS/SMX) : système "fiche unique + listes" (cases à cocher)
