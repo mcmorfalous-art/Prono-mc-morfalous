@@ -1477,6 +1477,11 @@ const CHAMP_CATS = {
 function isNations(champ){ return (champ||currentChamp) === 'MXdN'; }
 // catégories du championnat courant
 function cats(){ return CHAMP_CATS[currentChamp] || ['450','250']; }
+// catégories pour le PRONO / CLASSEMENT CHAMPIONNAT (titres finaux) :
+// en SX US il n'y a pas de titre "250 Showdown", seulement 450 / 250 West / 250 East
+function champCats(){
+  return cats().filter(c=> !(c==='250' && currentChamp==='SXUS'));
+}
 // classe CSS sûre à partir d'un nom de catégorie ("250 West" -> "250-West")
 function catClass(cat){ return 'cat-' + String(cat||'').replace(/\s+/g,'-'); }
 // libellé affiché d'une catégorie (le "250" de SX US = Showdown East+West)
@@ -3951,9 +3956,18 @@ async function loadConfig(){
     .eq('championnat', currentChamp).maybeSingle();
   CHAMP_CLOSES_AT = data?.champ_closes_at || null;
   CHAMP_CLOSES_LOADED_FOR = currentChamp;
+  // s'assurer que l'état "terminé" est connu pour ce championnat
+  if(CHAMP_TERMINE[currentChamp] === undefined){
+    try{
+      const { data: m } = await sb.from('championnats_meta').select('termine').eq('championnat', currentChamp).maybeSingle();
+      CHAMP_TERMINE[currentChamp] = !!(m && m.termine);
+    }catch(e){}
+  }
 }
 
 function champClosed(){
+  // championnat marqué "Terminé" => prono championnat fermé
+  if(CHAMP_TERMINE[currentChamp]) return true;
   if(!CHAMP_CLOSES_AT) return false;
   return Date.now() >= new Date(CHAMP_CLOSES_AT).getTime();
 }
@@ -3964,7 +3978,7 @@ async function renderChampPronos(body){
   const { data: existing } = await sb.from('pronos_championnat').select('*')
     .eq('user_id', currentSession.user.id).eq('championnat', currentChamp);
   const byCat = {}; (existing||[]).forEach(p=>byCat[p.categorie]=p);
-  const dejaValide = cats().every(c=> byCat[c]?.valide);
+  const aDejaPronostique = (existing||[]).length > 0;
   const closed = champClosed();
 
   // bandeau d'info sur la deadline
@@ -3977,24 +3991,21 @@ async function renderChampPronos(body){
     }
   }
 
-  // si fermé et pas validé : on montre quand même en lecture seule
-  const lockAll = closed || dejaValide;
-
   body.innerHTML = `
-    <p class="sec-sub">Pronostique le podium FINAL du championnat (1er/2e/3e). Ferme à la mi-saison, et une fois validé c'est figé !</p>
+    <p class="sec-sub">Pronostique le podium FINAL du championnat (1er/2e/3e). ${closed?'':'Modifiable jusqu\'à la fermeture (mi-saison).'}</p>
     ${banner}
-    ${cats().map(c=> champBlock(c, byCat[c], lockAll)).join('')}
+    ${champCats().map(c=> champBlock(c, byCat[c], closed)).join('')}
     <div class="msg" id="cmsg"></div>
-    ${dejaValide ? '<div class="voted-note2">✓ Tes pronostics championnat sont validés et figés</div>'
-      : closed ? '<div class="voted-note2" style="background:rgba(143,166,187,.1);border-color:var(--line2);color:var(--bone-dim)">Les pronostics championnat sont fermés (mi-saison dépassée)</div>'
-      : `<button class="btn" id="saveChamp">Valider mes pronostics championnat</button>
-         <p class="hint" style="text-align:center">⚠️ La validation est définitive, vérifie bien avant !</p>`}
+    ${closed
+      ? '<div class="voted-note2" style="background:rgba(143,166,187,.1);border-color:var(--line2);color:var(--bone-dim)">Les pronostics championnat sont fermés (mi-saison dépassée)</div>'
+      : `<button class="btn" id="saveChamp">${aDejaPronostique?'Modifier mes pronostics championnat':'Enregistrer mes pronostics championnat'}</button>`}
+    ${(!closed && aDejaPronostique) ? `<button class="btn-del" id="delChamp">Supprimer mon pronostic championnat</button>` : ''}
   `;
-  if(!lockAll){
-    cats().forEach(c=>setupChampPodium(c));
+  if(!closed){
+    champCats().forEach(c=>setupChampPodium(c));
     document.getElementById('saveChamp').onclick = saveChampProno;
-    startCountdowns();
-  } else if(!closed) {
+    const delBtn = document.getElementById('delChamp');
+    if(delBtn) delBtn.onclick = deleteChampProno;
     startCountdowns();
   }
 }
@@ -4002,13 +4013,13 @@ async function renderChampPronos(body){
 function champBlock(cat, existing, forceLock){
   const pilotes = pilotesForCat(cat);
   const e = existing||{};
-  const closed = e.valide || forceLock;
+  const closed = forceLock;
   const opt = (selId)=> '<option value="">—</option>' + pilotes.map(p=>
     `<option value="${p.id}" ${selId==p.id?'selected':''}>#${p.numero||'?'} ${p.nom}</option>`).join('');
   const dis = closed ? 'disabled' : '';
   return `
     <div class="podium champ" data-cat="${cat}">
-      <div class="podium-head"><span class="cat-tag ${catClass(cat)}">${catLabel(cat)}</span> Podium championnat ${e.valide?'<span class="lock">🔒 figé</span>':''}</div>
+      <div class="podium-head"><span class="cat-tag ${catClass(cat)}">${catLabel(cat)}</span> Podium championnat</div>
       <div class="pod-row"><label>1<sup>er</sup></label><select ${dis} data-pos="p1">${opt(e.p1_pilote_id)}</select></div>
       <div class="pod-row"><label>2<sup>e</sup></label><select ${dis} data-pos="p2">${opt(e.p2_pilote_id)}</select></div>
       <div class="pod-row"><label>3<sup>e</sup></label><select ${dis} data-pos="p3">${opt(e.p3_pilote_id)}</select></div>
@@ -4025,7 +4036,7 @@ function setupChampPodium(cat){ setupPodium(cat); } // même logique anti-doublo
 async function saveChampProno(){
   if(champClosed()) return showCMsg("Les pronostics championnat sont fermés (mi-saison dépassée).", 'err');
   const rows = [];
-  for(const cat of cats()){
+  for(const cat of champCats()){
     const block = document.querySelector(`.podium.champ[data-cat="${cat}"]`);
     if(!block) continue;
     const get = pos => block.querySelector(`select[data-pos="${pos}"]`).value || null;
@@ -4036,14 +4047,22 @@ async function saveChampProno(){
     rows.push({ user_id: currentSession.user.id, categorie: cat, championnat: currentChamp,
       p1_pilote_id:p1, p2_pilote_id:p2, p3_pilote_id:p3, p5_pilote_id:p5, joue_bonus5:bonus, valide:true });
   }
-  if(rows.length < cats().length) return showCMsg("Remplis tous les podiums du championnat.", 'err');
+  if(rows.length < champCats().length) return showCMsg("Remplis tous les podiums du championnat.", 'err');
 
-  if(!confirm("Valider définitivement tes pronostics championnat ? Tu ne pourras plus les modifier.")) return;
-  showCMsg("Validation…", 'ok');
+  showCMsg("Enregistrement…", 'ok');
   const { error } = await sb.from('pronos_championnat').upsert(rows, { onConflict:'user_id,categorie,championnat' });
   if(error) return showCMsg(error.message, 'err');
-  showCMsg("✓ Pronostics championnat validés et figés !", 'ok');
+  showCMsg("✓ Pronostics championnat enregistrés !", 'ok');
   setTimeout(()=>renderChampPronos(document.getElementById('pronoBody')), 1500);
+}
+
+async function deleteChampProno(){
+  if(champClosed()){ alert("Les pronostics championnat sont fermés, ils ne peuvent plus être supprimés."); return; }
+  if(!confirm("Supprimer ton pronostic championnat ? Cette action est définitive.")) return;
+  const { error } = await sb.from('pronos_championnat').delete()
+    .eq('user_id', currentSession.user.id).eq('championnat', currentChamp);
+  if(error){ alert("Erreur : "+error.message); return; }
+  renderChampPronos(document.getElementById('pronoBody'));
 }
 
 function showCMsg(t,type){ const m=document.getElementById('cmsg'); if(m){ m.textContent=t; m.className='msg show '+type; } }
@@ -4122,9 +4141,9 @@ async function renderAdminResultats(body){
   const showChampFinal = !isNations();
   let champFinalBlock = '';
   if(showChampFinal){
-    const catBlocks = cats().map(c=> resultChampBlock(c, rchampByCat[c])).join('');
-    const savedCount = cats().filter(c=> rchampByCat[c]).length;
-    const stateTag = savedCount===cats().length ? '<span class="tag-done2">✓ saisi</span>'
+    const catBlocks = champCats().map(c=> resultChampBlock(c, rchampByCat[c])).join('');
+    const savedCount = champCats().filter(c=> rchampByCat[c]).length;
+    const stateTag = savedCount===champCats().length ? '<span class="tag-done2">✓ saisi</span>'
                    : savedCount>0 ? '<span class="tag-partial">partiel</span>'
                    : '<span class="tag-none">à saisir</span>';
     champFinalBlock = `
@@ -4174,7 +4193,7 @@ async function renderAdminResultats(body){
   });
   // classement final championnat
   if(showChampFinal){
-    cats().forEach(c=> setupResultChamp(c));
+    champCats().forEach(c=> setupResultChamp(c));
     const sc = document.getElementById('saveResChamp');
     if(sc) sc.onclick = ()=> saveResultChamp(body);
   }
@@ -4215,7 +4234,7 @@ function setupResultChamp(cat){
 
 async function saveResultChamp(body){
   const rows = [];
-  for(const cat of cats()){
+  for(const cat of champCats()){
     const block = document.querySelector(`.podium.reschamp[data-cat="${cat}"]`);
     if(!block) continue;
     const get = pos => block.querySelector(`select[data-pos="${pos}"]`).value || null;
