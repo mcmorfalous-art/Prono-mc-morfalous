@@ -3369,6 +3369,8 @@ function pilotesForCat(cat){
 }
 
 function isClosed(manche){
+  // championnat marqué "Terminé" => toutes ses manches sont fermées
+  if(CHAMP_TERMINE[manche.championnat] || CHAMP_TERMINE[currentChamp]) return true;
   if(manche.terminee) return true;
   if(!manche.closes_at) return false;
   return Date.now() >= new Date(manche.closes_at).getTime();
