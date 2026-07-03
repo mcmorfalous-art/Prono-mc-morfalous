@@ -238,14 +238,18 @@ header::after{
   margin-top:6px;letter-spacing:.02em}
 
 /* rappel "ça ferme bientôt" */
-.home-alert{display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:14px;margin-bottom:14px;
+.home-alert{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:13px 15px;border-radius:14px;margin-bottom:14px;cursor:pointer;
   background:linear-gradient(120deg, rgba(226,59,46,.18), rgba(226,59,46,.06));
-  border:1px solid rgba(226,59,46,.5);animation:fadeUp .4s ease both, alertpulse 2s ease-in-out infinite}
+  border:1px solid rgba(226,59,46,.5);animation:fadeUp .4s ease both, alertpulse 2s ease-in-out infinite;
+  transition:transform .12s ease,border-color .12s ease}
+.home-alert:hover{transform:translateY(-2px);border-color:rgba(226,59,46,.9)}
+.home-alert:active{transform:scale(.99)}
 @keyframes alertpulse{0%,100%{box-shadow:0 0 0 0 rgba(226,59,46,.35)}50%{box-shadow:0 0 0 8px rgba(226,59,46,0)}}
 .home-alert .ha-ico{font-size:24px;flex-shrink:0}
-.home-alert .ha-body{display:flex;flex-direction:column;gap:1px}
+.home-alert .ha-body{display:flex;flex-direction:column;gap:1px;flex:1}
 .home-alert .ha-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:#fff;text-transform:uppercase;letter-spacing:.02em}
 .home-alert .ha-sub{font-size:12.5px;color:var(--bone)}
+.home-alert .ha-arrow{font-size:22px;color:#fff;flex-shrink:0;opacity:.85;font-weight:700}
 
 /* encart En bref (résumé) */
 .home-bref{display:block;width:100%;text-align:left;padding:14px 15px;border-radius:15px;margin-bottom:16px;
@@ -1627,13 +1631,15 @@ async function renderChampPicker(){
   let alertHtml='';
   if(soon.length){
     const champs=[...new Set(soon.map(m=>CHAMP_LABELS[m.championnat]||m.championnat))];
-    alertHtml = `<div class="home-alert">
+    const urgent = soon[0]; // la plus proche de la fermeture
+    alertHtml = `<button class="home-alert" data-act="closingsoon" data-manche="${urgent.id}" data-champ="${urgent.championnat}">
       <span class="ha-ico">⚠️</span>
       <div class="ha-body">
         <span class="ha-title">Ça ferme bientôt !</span>
         <span class="ha-sub">${soon.length} manche${soon.length>1?'s':''} ferme${soon.length>1?'nt':''} dans moins de 12h · ${champs.join(', ')}</span>
       </div>
-    </div>`;
+      <span class="ha-arrow">→</span>
+    </button>`;
   }
 
   // En bref : résumé (2 actus max)
@@ -1679,6 +1685,25 @@ async function renderChampPicker(){
   setupScrollHint();
   const brefBtn = host.querySelector('.home-bref');
   if(brefBtn) brefBtn.onclick = ()=> openGlobalView('enbref');
+
+  // clic sur la bannière "ça ferme bientôt" → entre dans le championnat puis ouvre la manche urgente
+  const alertBtn = host.querySelector('.home-alert');
+  if(alertBtn) alertBtn.onclick = ()=>{
+    const mancheId = +alertBtn.dataset.manche;
+    const champ = alertBtn.dataset.champ;
+    // entrer dans le championnat (rend l'écran du champ avec la nav)
+    currentChamp = champ; PILOTES = {}; CHAMP_CLOSES_LOADED_FOR = null;
+    inChampScreen = true; currentView = 'pronos';
+    renderShell();
+    checkAlerts();
+    // puis ouvrir le prono de la manche une fois l'écran prêt
+    setTimeout(async ()=>{
+      pronosState.tab = 'manches';
+      await loadPilotes();
+      const { data: m } = await sb.from('manches').select('*').eq('id', mancheId).single();
+      if(m){ openMancheProno(m.id, m); } else { switchView('pronos'); }
+    }, 50);
+  };
 
   // remplir le résumé En bref
   computeActus().then(({home})=>{
