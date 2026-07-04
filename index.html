@@ -570,6 +570,18 @@ header::after{
 .apush-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;color:var(--bone);
   text-transform:uppercase;letter-spacing:.03em;text-align:center;line-height:1.15}
 
+/* bouton "envoyer une notif" en haut de l'admin */
+.admin-notif-btn{display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;margin-bottom:14px;
+  border-radius:14px;cursor:pointer;border:1px solid var(--cyan);
+  background:linear-gradient(120deg, rgba(92,198,232,.16), rgba(92,198,232,.04));
+  transition:transform .12s ease,border-color .12s ease}
+.admin-notif-btn:hover{transform:translateY(-2px)}
+.admin-notif-btn:active{transform:scale(.99)}
+.admin-notif-btn.on{background:var(--night2);border-color:var(--line2)}
+.admin-notif-btn .anb-ico{font-size:24px;flex-shrink:0}
+.admin-notif-btn .anb-txt{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;
+  color:#fff;text-transform:uppercase;letter-spacing:.02em;text-align:left}
+
 /* admin notifs : sélection des championnats à citer */
 .apush-champs-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;
   text-transform:uppercase;letter-spacing:.05em;color:var(--bone-dim);margin:10px 2px 8px}
@@ -1853,7 +1865,7 @@ function openMenu(){
       <button class="menu-item" data-act="chat"><span class="mi-ico">💬</span> Chat du club</button>
       <button class="menu-item" data-act="regles"><span class="mi-ico">📖</span> Règlement</button>
       <button class="menu-item" data-act="profil"><span class="mi-ico">👤</span> Mon profil</button>
-      <button class="menu-item" data-act="notifs"><span class="mi-ico">🔔</span> Rappels de pronos</button>
+      <button class="menu-item" data-act="notifs"><span class="mi-ico">🔔</span> Activer les notifs</button>
       ${isAdmin ? '<button class="menu-item" data-act="admin"><span class="mi-ico">★</span> Admin</button>' : ''}
       <button class="menu-item danger" data-act="logout"><span class="mi-ico">🚪</span> Déconnexion</button>
     </div>`;
@@ -1940,7 +1952,7 @@ function openNotifSettings(){
   ov.className='menu-overlay';
   ov.innerHTML = `
     <div class="menu-drawer notif-drawer">
-      <div class="menu-head"><span>🔔 Rappels de pronos</span><button class="menu-close" id="nfClose">×</button></div>
+      <div class="menu-head"><span>🔔 Activer les notifs</span><button class="menu-close" id="nfClose">×</button></div>
       <div class="notif-body" id="nfBody"><div class="loading">Chargement…</div></div>
     </div>`;
   document.body.appendChild(ov);
@@ -4259,15 +4271,18 @@ let adminTab = 'resultats';
 async function renderAdmin(v){
   v.innerHTML = `
     <div class="card">
-      <div class="admin-champ-sel" id="adminChampSel">
+      <button class="admin-notif-btn ${adminTab==='notifs'?'on':''}" id="atNotif">
+        <span class="anb-ico">📢</span>
+        <span class="anb-txt">${adminTab==='notifs'?'← Retour à l\'admin':'Envoyer une notification au club'}</span>
+      </button>
+      <div class="admin-champ-sel" id="adminChampSel" ${adminTab==='notifs'?'style="display:none"':''}>
         ${CHAMPS.map(c=>`<button class="acs-btn ${c===currentChamp?'active':''}" data-champ="${c}">
           <span class="acs-ico">${CHAMP_ICONS[c]||''}</span><span class="acs-lbl">${CHAMP_LABELS[c]||c}</span>
         </button>`).join('')}
       </div>
-      <div class="subnav">
+      <div class="subnav" ${adminTab==='notifs'?'style="display:none"':''}>
         <button class="sub-btn ${adminTab==='resultats'?'active':''}" id="atRes">📝 Résultats</button>
         <button class="sub-btn ${adminTab==='pilotes'?'active':''}" id="atPil">🏍️ Pilotes</button>
-        <button class="sub-btn ${adminTab==='notifs'?'active':''}" id="atNotif">📢 Notifs</button>
       </div>
       <div id="adminBody"></div>
     </div>
@@ -4280,9 +4295,9 @@ async function renderAdmin(v){
       renderAdmin(v);
     };
   });
-  document.getElementById('atRes').onclick = ()=>{ adminTab='resultats'; renderAdmin(v); };
-  document.getElementById('atPil').onclick = ()=>{ adminTab='pilotes'; renderAdmin(v); };
-  document.getElementById('atNotif').onclick = ()=>{ adminTab='notifs'; renderAdmin(v); };
+  const atRes = document.getElementById('atRes'); if(atRes) atRes.onclick = ()=>{ adminTab='resultats'; renderAdmin(v); };
+  const atPil = document.getElementById('atPil'); if(atPil) atPil.onclick = ()=>{ adminTab='pilotes'; renderAdmin(v); };
+  document.getElementById('atNotif').onclick = ()=>{ adminTab = (adminTab==='notifs') ? 'resultats' : 'notifs'; renderAdmin(v); };
   if(adminTab==='pilotes') return renderAdminPilotes(document.getElementById('adminBody'));
   if(adminTab==='notifs') return renderAdminNotifs(document.getElementById('adminBody'));
   return renderAdminResultats(document.getElementById('adminBody'));
