@@ -570,6 +570,19 @@ header::after{
 .apush-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;color:var(--bone);
   text-transform:uppercase;letter-spacing:.03em;text-align:center;line-height:1.15}
 
+/* admin notifs : sélection des championnats à citer */
+.apush-champs-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--bone-dim);margin:10px 2px 8px}
+.apush-champs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.apush-chip{padding:8px 14px;border-radius:20px;border:1px solid var(--line2);background:var(--night);
+  cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;
+  text-transform:uppercase;letter-spacing:.03em;color:var(--bone-dim);transition:all .12s ease}
+.apush-chip:hover{border-color:var(--cyan)}
+.apush-chip.on{background:rgba(92,198,232,.16);border-color:var(--cyan);color:var(--cyan)}
+.apush-preview{margin:2px 2px 6px;min-height:20px}
+.apush-preview .app-note{font-size:12.5px;color:var(--bone-dim);font-style:italic}
+.apush-preview .app-note b{color:var(--cyan);font-style:normal}
+
 /* liste des manches */
 .grp-title{font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.1em;
   font-size:12px;color:var(--cyan);font-weight:700;margin:6px 0 10px}
@@ -4276,18 +4289,39 @@ async function renderAdmin(v){
 }
 
 // ====== ADMIN : envoi de notifications au club ======
+// Messages admin. {C} est remplacé par le(s) championnat(s) cité(s), ou par un texte générique si aucun coché.
 const ADMIN_PUSH_MESSAGES = [
   { key:'resultats', ico:'🏁', label:'Résultats en ligne',
-    title:'🏁 Résultats disponibles !', body:'Les résultats viennent de tomber. Va voir ton classement !' },
+    title:'🏁 Résultats disponibles !',
+    body:'Les résultats {C} sont en ligne. Va voir ton classement !',
+    bodyAll:'Les résultats viennent de tomber. Va voir ton classement !' },
   { key:'manche', ico:'📅', label:'Nouvelle manche',
-    title:'📅 Nouvelle manche à pronostiquer', body:'Une nouvelle manche est ouverte aux pronos. À toi de jouer !' },
+    title:'📅 Nouvelle manche à pronostiquer',
+    body:'Une nouvelle manche {C} est ouverte aux pronos. À toi de jouer !',
+    bodyAll:'Une nouvelle manche est ouverte aux pronos. À toi de jouer !' },
   { key:'ferme', ico:'⏰', label:'Ça ferme bientôt',
-    title:'⏰ Derniers pronos !', body:'Les pronos ferment bientôt, pense à valider les tiens. 🏁' },
+    title:'⏰ Derniers pronos !',
+    body:'Les pronos {C} ferment bientôt, pense à valider les tiens. 🏁',
+    bodyAll:'Les pronos ferment bientôt, pense à valider les tiens. 🏁' },
   { key:'classement', ico:'🏆', label:'Classement mis à jour',
-    title:'🏆 Classement mis à jour', body:'Le classement du club vient d\'être actualisé. Où en es-tu ?' },
+    title:'🏆 Classement mis à jour',
+    body:'Le classement {C} vient d\'être actualisé. Où en es-tu ?',
+    bodyAll:'Le classement du club vient d\'être actualisé. Où en es-tu ?' },
   { key:'pronosclub', ico:'👀', label:'Les pronos du club',
-    title:'👀 Les pronos du club sont là', body:'Découvre ce que les autres ont pronostiqué pour cette manche !' },
+    title:'👀 Les pronos du club sont là',
+    body:'Découvre les pronos du club {C} pour cette manche !',
+    bodyAll:'Découvre ce que les autres ont pronostiqué pour cette manche !' },
 ];
+
+// construit "MXGP", "MXGP et Vendée", "MXGP, Vendée et SX US"
+function joinChamps(list){
+  const names = list.map(c=> CHAMP_LABELS[c]||c);
+  if(names.length===0) return '';
+  if(names.length===1) return names[0];
+  return names.slice(0,-1).join(', ') + ' et ' + names[names.length-1];
+}
+
+let adminPushChamps = []; // championnats cochés pour l'envoi
 
 async function renderAdminNotifs(body){
   // compter les abonnés
@@ -4299,7 +4333,14 @@ async function renderAdminNotifs(body){
 
   body.innerHTML = `
     <div class="sec-title">Envoyer une notification</div>
-    <p class="sec-sub">Envoie un rappel à tout le club en un clic. ${nbSubs} joueur${nbSubs>1?'s':''} ${nbSubs>1?'ont':'a'} activé les notifications.</p>
+    <p class="sec-sub">La notif part à tout le club. Coche les championnats concernés pour les citer dans le message (facultatif). ${nbSubs} joueur${nbSubs>1?'s':''} abonné${nbSubs>1?'s':''}.</p>
+    <div class="apush-champs-lbl">Championnats concernés</div>
+    <div class="apush-champs">
+      ${CHAMPS.map(c=>`
+        <button class="apush-chip ${adminPushChamps.includes(c)?'on':''}" data-champ="${c}">${CHAMP_LABELS[c]||c}</button>`).join('')}
+    </div>
+    <div class="apush-preview" id="apushPreview"></div>
+    <div class="apush-champs-lbl">Type de message</div>
     <div class="apush-grid">
       ${ADMIN_PUSH_MESSAGES.map(m=>`
         <button class="apush-btn" data-key="${m.key}">
@@ -4309,22 +4350,51 @@ async function renderAdminNotifs(body){
     </div>
     <div class="msg" id="apushMsg"></div>
   `;
+  // toggle des championnats
+  body.querySelectorAll('.apush-chip').forEach(b=>{
+    b.onclick = ()=>{
+      const c = b.dataset.champ;
+      if(adminPushChamps.includes(c)) adminPushChamps = adminPushChamps.filter(x=>x!==c);
+      else adminPushChamps.push(c);
+      b.classList.toggle('on');
+      updatePushPreview();
+    };
+  });
   body.querySelectorAll('.apush-btn').forEach(b=>{
     b.onclick = ()=> sendAdminPush(b.dataset.key, b);
   });
+  updatePushPreview();
+}
+
+// construit le body final d'un message selon les champs cochés
+function buildPushBody(m){
+  if(adminPushChamps.length===0) return m.bodyAll;
+  return m.body.replace('{C}', joinChamps(adminPushChamps));
+}
+
+function updatePushPreview(){
+  const el = document.getElementById('apushPreview');
+  if(!el) return;
+  if(adminPushChamps.length===0){
+    el.innerHTML = `<span class="app-note">Aucun championnat coché → message général au club.</span>`;
+  } else {
+    el.innerHTML = `<span class="app-note">Message ciblé : <b>${joinChamps(adminPushChamps)}</b></span>`;
+  }
 }
 
 async function sendAdminPush(key, btn){
   const msgEl = document.getElementById('apushMsg');
   const m = ADMIN_PUSH_MESSAGES.find(x=>x.key===key);
   if(!m) return;
-  if(!confirm(`Envoyer la notification "${m.label}" à tout le club ?`)) return;
+  const finalBody = buildPushBody(m);
+  const cibles = adminPushChamps.length ? ` (${joinChamps(adminPushChamps)})` : '';
+  if(!confirm(`Envoyer "${m.label}"${cibles} à tout le club ?\n\n"${finalBody}"`)) return;
 
   btn.disabled = true;
   msgEl.textContent = 'Envoi en cours…'; msgEl.className = 'msg show';
   try{
     const { data, error } = await sb.functions.invoke('send-admin-push', {
-      body: { title: m.title, body: m.body }
+      body: { title: m.title, body: finalBody }
     });
     if(error) throw error;
     const n = (data && data.totalSent!=null) ? data.totalSent : '?';
