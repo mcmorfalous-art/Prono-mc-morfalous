@@ -1484,7 +1484,8 @@ async function doLogin(){
 async function doForgot(){
   const email = val('li_email');
   if(!email) return showMsg("Entre d'abord ton email ci-dessus, puis reclique.", 'err');
-  const { error } = await sb.auth.resetPasswordForEmail(email);
+  const redirectTo = location.origin + location.pathname; // revient sur l'app (index), pas /verify
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
   if(error) return showMsg(traduitErreur(error.message), 'err');
   showMsg("Email de réinitialisation envoyé (vérifie tes spams).", 'ok');
 }
@@ -5337,12 +5338,50 @@ function teardownChat(){
 async function boot(){
   if(!sb) return;
   checkAlreadyInstalled(); // masque la bannière si l'appli est déjà installée
+  // détecte le retour depuis le lien de réinitialisation du mot de passe
+  sb.auth.onAuthStateChange((event, session)=>{
+    if(event==='PASSWORD_RECOVERY'){
+      openResetScreen();
+    }
+  });
   const { data:{ session } } = await sb.auth.getSession();
   if(session){ renderHome(session); }
   else { renderAuth(); }
   hideSplash();
 }
 boot();
+
+// écran "choisir un nouveau mot de passe" après clic sur le lien de reset
+function openResetScreen(){
+  const ov = document.createElement('div');
+  ov.className = 'menu-overlay';
+  ov.style.zIndex = 9999;
+  ov.innerHTML = `
+    <div class="menu-drawer notif-drawer" style="margin:auto;max-width:380px;border-radius:18px">
+      <div class="menu-head"><span>🔑 Nouveau mot de passe</span></div>
+      <div class="notif-body">
+        <p class="nf-txt">Choisis ton nouveau mot de passe.</p>
+        <div class="field"><input id="rs_p1" type="password" placeholder="Nouveau mot de passe" class="auth-input"></div>
+        <div class="field" style="margin-top:10px"><input id="rs_p2" type="password" placeholder="Confirme le mot de passe" class="auth-input"></div>
+        <div class="msg" id="rsMsg"></div>
+        <button class="btn" id="rsBtn" style="margin-top:12px">Valider</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  document.getElementById('rsBtn').onclick = async ()=>{
+    const p1 = document.getElementById('rs_p1').value;
+    const p2 = document.getElementById('rs_p2').value;
+    const msg = document.getElementById('rsMsg');
+    const set = (t,c)=>{ msg.textContent=t; msg.className='msg show '+c; };
+    if(!p1||!p2) return set('Remplis les deux champs.', 'err');
+    if(p1!==p2) return set('Les mots de passe ne correspondent pas.', 'err');
+    if(p1.length<6) return set('6 caractères minimum.', 'err');
+    const { error } = await sb.auth.updateUser({ password:p1 });
+    if(error) return set(traduitErreur(error.message), 'err');
+    set('✓ Mot de passe mis à jour !', 'ok');
+    setTimeout(()=>{ ov.remove(); location.reload(); }, 1500);
+  };
+}
 </script>
 </body>
 </html>
