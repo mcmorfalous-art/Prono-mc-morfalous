@@ -1398,7 +1398,6 @@ function loginForm(){
     </div>
     <button class="btn" id="btnLogin">Se connecter</button>
     <button class="forgot" id="forgot">Mot de passe oublié ?</button>
-    <div class="confirm-hint">Tu viens de t'inscrire ? Pense à <b>confirmer ton email</b> via le lien reçu (mail de « Supabase », en anglais, à vérifier dans tes spams) avant de te connecter.</div>
   `;
 }
 
@@ -1425,11 +1424,6 @@ function signupForm(){
       <input id="su_code" type="text" placeholder="Code réservé aux licenciés">
       <div class="hint">Ce code t'est communiqué par le club. Sans lui, pas d'inscription.</div>
     </div>
-    <div class="confirm-note">📩 <b>Comment ça marche :</b><br>
-      1. Après l'inscription, tu reçois un email de <b>« Supabase »</b>, en anglais (objet « Confirm your email address ») — c'est normal ! Pense à vérifier tes <b>spams</b>.<br>
-      2. Clique sur le lien <b>« Confirm email address »</b>.<br>
-      3. Une page peut afficher une erreur (« 404 ») : <b>pas d'inquiétude, ton compte est bien activé !</b><br>
-      4. <b>Reviens sur l'appli</b> et connecte-toi normalement. 🐺</div>
     <button class="btn" id="btnSignup">Créer mon compte</button>
   `;
 }
@@ -1461,14 +1455,15 @@ async function doSignup(){
   });
   if(error){ btn.disabled=false; return showMsg(traduitErreur(error.message), 'err'); }
 
-  // selon config Supabase, une confirmation email peut être requise
+  // confirmation email désactivée : on connecte directement
   if(data.session){
-    boot(); // connecté direct (si confirmation désactivée)
-  } else {
-    showMsg("Compte créé ! Va confirmer ton email (mail de « Supabase », vérifie tes spams). Si la page affiche une erreur après le clic, c'est normal : reviens ici et connecte-toi.", 'ok');
-    mode='login';
-    setTimeout(renderAuth, 7000);
+    boot(); // session déjà active
+    return;
   }
+  // pas de session renvoyée : on tente une connexion automatique avec les identifiants
+  const { error: loginErr } = await sb.auth.signInWithPassword({ email, password: pwd });
+  if(loginErr){ btn.disabled=false; return showMsg(traduitErreur(loginErr.message), 'err'); }
+  boot(); // connecté
 }
 
 async function doLogin(){
@@ -2855,6 +2850,7 @@ function renderRegles(v){
             </table>
             <p class="reg-bonus"><b>Bonus podium parfait</b> : 3 pilotes dans l'ordre exact = <b>+3 pts</b> (soit 18) !</p>
             <p class="reg-bonus"><b>Bonus 5e place</b> (optionnel, à double tranchant) : tu trouves le 5e → tes points de la catégorie sont <b>doublés</b> ! Tu te trompes → tu perds <b>5 pts</b>. À jouer si tu le sens. 🎲</p>
+            <p class="reg-bonus" style="background:rgba(60,190,120,.08);border-color:rgba(60,190,120,.3)"><b>✓ Pas de score négatif</b> : le total d'une manche ne descend jamais en dessous de <b>0</b>. Même si le malus du bonus 5e dépasse tes points, tu tombes au minimum à 0, jamais dans le rouge.</p>
 
             <div class="reg-h">Le prono championnat</div>
             <p>En plus des courses, tu pronostiques le <b>podium final du championnat</b>. Il ferme à la <b>mi-saison</b> et, une fois validé, c'est <b>définitif</b> ! Barème plus généreux :</p>
