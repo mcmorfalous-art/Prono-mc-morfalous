@@ -2939,6 +2939,8 @@ function scoreManche(prono, resultat){
     if(prono.p5_pilote_id && resultat.p5_pilote_id && prono.p5_pilote_id===resultat.p5_pilote_id) pts*=2;
     else pts-=5;
   }
+  // le score d'une manche ne peut jamais être négatif
+  if(pts < 0) pts = 0;
   return pts;
 }
 // détail lisible du score d'une manche (base, podium parfait, bonus/malus 5e)
@@ -2962,8 +2964,11 @@ function scoreBreakdown(prono, resultat){
       double5=true; bonus5 = avant5; // doublé => on gagne autant en plus
     } else { malus5=true; bonus5 = -5; }
   }
-  const total = avant5 + bonus5;
-  return { bons, bien, base, parfait, avant5, joue5:!!prono.joue_bonus5, double5, malus5, bonus5, total };
+  let total = avant5 + bonus5;
+  // le score d'une manche ne peut jamais être négatif : on plafonne le malus affiché
+  let planche=false;
+  if(total < 0){ bonus5 = -avant5; total = 0; planche=true; }
+  return { bons, bien, base, parfait, avant5, joue5:!!prono.joue_bonus5, double5, malus5, bonus5, total, planche };
 }
 function scoreChamp(prono, resultat){
   if(!prono || !resultat) return 0;
@@ -3173,8 +3178,7 @@ async function renderClassement(v){
   const myCats = cats();
   const pts = {};     // pts[userId] = { cat: points }
   const detail = {};  // detail[userId] = [{manche, cat, points}...]
-  const tb = {};      // tie-break : tb[userId] = { parfaits, bonus5, joues }
-  profils.forEach(p=>{ pts[p.id]={}; myCats.forEach(c=>pts[p.id][c]=0); detail[p.id]=[]; tb[p.id]={parfaits:0,bonus5:0,joues:0}; });
+  profils.forEach(p=>{ pts[p.id]={}; myCats.forEach(c=>pts[p.id][c]=0); detail[p.id]=[]; });
 
   // points manches
   pronos.forEach(pr=>{
@@ -3184,13 +3188,6 @@ async function renderClassement(v){
       pts[pr.user_id][pr.categorie] += gain;
       const m = mancheById[pr.manche_id];
       detail[pr.user_id].push({ label:(m?m.nom:'Manche'), cat:pr.categorie, points:gain, ordre:(m?m.ordre:99) });
-      // stats de départage
-      const bd = scoreBreakdown(pr, res);
-      if(bd){
-        tb[pr.user_id].joues++;
-        if(bd.parfait>0) tb[pr.user_id].parfaits++;
-        if(bd.double5) tb[pr.user_id].bonus5++;
-      }
     }
   });
   // points championnat
@@ -3211,17 +3208,8 @@ async function renderClassement(v){
     const perCat = {}; myCats.forEach(c=> perCat[c]=pts[p.id][c]||0);
     const totalAll = myCats.reduce((s,c)=> s+perCat[c], 0);
     const total = cat==='global' ? totalAll : (perCat[cat]||0);
-    const t = tb[p.id] || {parfaits:0,bonus5:0,joues:0};
-    return { id:p.id, pseudo:p.pseudo, perCat, total, detail:detail[p.id],
-             parfaits:t.parfaits, bonus5:t.bonus5, joues:t.joues };
-  }).sort((a,b)=>{
-    // cascade de départage : points > podiums parfaits > bonus 5e > manches jouées > pseudo
-    if(b.total !== a.total) return b.total - a.total;
-    if(b.parfaits !== a.parfaits) return b.parfaits - a.parfaits;
-    if(b.bonus5 !== a.bonus5) return b.bonus5 - a.bonus5;
-    if(b.joues !== a.joues) return b.joues - a.joues;
-    return (a.pseudo||'').localeCompare(b.pseudo||'');
-  });
+    return { id:p.id, pseudo:p.pseudo, perCat, total, detail:detail[p.id] };
+  }).sort((a,b)=> b.total - a.total);
 
   const hasAnyResult = resultats.length>0 || rchamp.length>0;
 
