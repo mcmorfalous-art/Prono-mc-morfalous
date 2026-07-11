@@ -747,10 +747,16 @@ header::after{
 .admin-manche-wrap .manche-row{flex:1;margin-bottom:0}
 .admin-manche-wrap.is-annulee .manche-row{opacity:.55}
 .admin-manche-wrap.is-annulee .m-nom{text-decoration:line-through}
-.annul-btn{flex-shrink:0;padding:0 12px;border-radius:9px;cursor:pointer;
+.admin-row-actions{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+.open-btn{padding:0 12px;min-height:34px;border-radius:9px;cursor:pointer;
   border:1px solid var(--line2);background:var(--night);color:var(--bone-dim);
   font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;
-  text-transform:uppercase;letter-spacing:.04em}
+  text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.open-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.annul-btn{flex-shrink:0;padding:0 12px;min-height:34px;border-radius:9px;cursor:pointer;
+  border:1px solid var(--line2);background:var(--night);color:var(--bone-dim);
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;
+  text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
 .annul-btn:hover{border-color:var(--red);color:#ff8a80}
 
 /* bandeau d'alerte (rappel pronos) */
@@ -3586,6 +3592,8 @@ function isClosed(manche){
   // championnat marqué "Terminé" => toutes ses manches sont fermées
   if(CHAMP_TERMINE[manche.championnat] || CHAMP_TERMINE[currentChamp]) return true;
   if(manche.terminee) return true;
+  // réouverture manuelle par l'admin : les pronos restent ouverts même si la date est passée
+  if(manche.force_open) return false;
   if(!manche.closes_at) return false;
   return Date.now() >= new Date(manche.closes_at).getTime();
 }
@@ -4455,9 +4463,14 @@ async function renderAdminResultats(body){
         <span class="m-info"><span class="m-nom">${m.nom}</span><span class="m-date">${frDate(m.date_course)}</span></span>
         <span class="m-state">${resState}</span>
       </button>
-      <button class="annul-btn" data-annul="${m.id}" data-etat="${m.annulee?1:0}">
-        ${m.annulee?'Réactiver':'Annuler'}
-      </button>
+      <div class="admin-row-actions">
+        <button class="open-btn" data-openclose="${m.id}">
+          ${isClosed(m) ? '🔓 Rouvrir les pronos' : '🔒 Fermer les pronos'}
+        </button>
+        <button class="annul-btn" data-annul="${m.id}" data-etat="${m.annulee?1:0}">
+          ${m.annulee?'Réactiver':'Annuler'}
+        </button>
+      </div>
     </div>`;
   }).join('');
 
@@ -4512,6 +4525,25 @@ async function renderAdminResultats(body){
         : `Réactiver "${m.nom}" ?`;
       if(!confirm(msg)) return;
       await sb.from('manches').update({ annulee: nouvelEtat }).eq('id', id);
+      renderAdminResultats(body);
+    };
+  });
+  // ouvrir / fermer manuellement les pronos d'une manche
+  body.querySelectorAll('.open-btn').forEach(b=>{
+    b.onclick = async ()=>{
+      const id = +b.dataset.openclose;
+      const m = manches.find(x=>x.id===id);
+      if(isClosed(m)){
+        // ROUVRIR : force_open = true, on lève le flag "terminée"
+        if(!confirm(`Rouvrir les pronos de "${m.nom}" ? Les joueurs pourront à nouveau pronostiquer.`)) return;
+        const { error } = await sb.from('manches').update({ force_open:true, terminee:false }).eq('id', id);
+        if(error){ alert('Erreur : '+error.message); return; }
+      } else {
+        // FERMER : terminée = true, on retire le force_open
+        if(!confirm(`Fermer les pronos de "${m.nom}" maintenant ? Les joueurs ne pourront plus pronostiquer.`)) return;
+        const { error } = await sb.from('manches').update({ terminee:true, force_open:false }).eq('id', id);
+        if(error){ alert('Erreur : '+error.message); return; }
+      }
       renderAdminResultats(body);
     };
   });
