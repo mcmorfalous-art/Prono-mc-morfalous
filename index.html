@@ -348,6 +348,18 @@ header::after{
   text-transform:uppercase;letter-spacing:.02em;display:flex;align-items:center;gap:8px;margin-bottom:4px}
 .cfb-sub{font-size:12.5px;color:var(--bone-dim);margin:0 0 12px;line-height:1.4}
 .cfb-sub b{color:var(--bone)}
+/* réglage deadline prono championnat */
+.champ-deadline-box{background:var(--night);border:1px solid var(--line2);border-radius:14px;
+  padding:14px 14px 16px;margin-bottom:18px}
+.cdb-head{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:#fff;
+  text-transform:uppercase;letter-spacing:.02em;display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.cdb-sub{font-size:12.5px;color:var(--bone-dim);margin:0 0 12px;line-height:1.4}
+.cdb-sub b{color:var(--bone)}
+.cdb-input{width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line2);
+  background:var(--night2);color:var(--bone);font-family:inherit;font-size:15px;margin-bottom:10px}
+.cdb-input:focus{outline:none;border-color:var(--cyan)}
+.cdb-actions{display:flex;gap:10px;flex-wrap:wrap}
+.cdb-actions .btn{flex:1;min-width:150px}
 .admin-manches-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;
   text-transform:uppercase;letter-spacing:.05em;color:var(--bone-dim);margin:4px 2px 10px}
 
@@ -4157,6 +4169,13 @@ function openProposeForm(){
 let CHAMP_CLOSES_AT = undefined;
 let CHAMP_CLOSES_LOADED_FOR = null; // pour quel championnat la date est chargée
 
+// convertit une date ISO en valeur pour <input type="datetime-local"> (heure locale)
+function toLocalInput(iso){
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 async function loadConfig(){
   if(CHAMP_CLOSES_LOADED_FOR === currentChamp) return; // déjà chargé pour ce champ
   const { data } = await sb.from('config_champ').select('champ_closes_at')
@@ -4450,6 +4469,13 @@ async function renderAdminResultats(body){
   const { data: rchampExist } = await sb.from('resultat_championnat').select('*').eq('championnat', currentChamp);
   const rchampByCat = {}; (rchampExist||[]).forEach(r=> rchampByCat[r.categorie]=r);
 
+  // deadline du prono championnat (config_champ)
+  let champDeadline = null;
+  try{
+    const { data: cfg } = await sb.from('config_champ').select('champ_closes_at').eq('championnat', currentChamp).maybeSingle();
+    champDeadline = cfg?.champ_closes_at || null;
+  }catch(e){}
+
   const rows = (manches||[]).map(m=>{
     const mc = mancheCats(m);
     const done = mc.filter(c=> resSet.has(m.id+'-'+c)).length;
@@ -4501,6 +4527,17 @@ async function renderAdminResultats(body){
       <span>Championnat <b>${CHAMP_LABELS[currentChamp]||currentChamp}</b> terminé (affiche "Terminé" sur l'accueil)</span>
     </label>
     ${champFinalBlock}
+    ${!isNations() ? `
+    <div class="champ-deadline-box">
+      <div class="cdb-head">📅 Fermeture des pronos championnat</div>
+      <p class="cdb-sub">Date/heure limite pour pronostiquer le <b>podium final</b> du championnat. Après cette date, les joueurs ne peuvent plus modifier leur prono championnat.</p>
+      <input type="datetime-local" id="champDeadlineInput" class="cdb-input" value="${champDeadline ? toLocalInput(champDeadline) : ''}">
+      <div class="cdb-actions">
+        <button class="btn" id="saveChampDeadline">Enregistrer la date</button>
+        ${champDeadline ? '<button class="btn-del" id="clearChampDeadline">Retirer la deadline</button>' : ''}
+      </div>
+      <div class="msg" id="cdbMsg"></div>
+    </div>` : ''}
     <div class="admin-manches-lbl">Résultats par manche</div>
     ${rows}
   `;
@@ -4511,6 +4548,29 @@ async function renderAdminResultats(body){
       .upsert({ championnat: currentChamp, termine: val, updated_at: new Date().toISOString() });
     if(error){ alert('Erreur : '+error.message); doneChk.checked = !val; return; }
     CHAMP_TERMINE[currentChamp] = val;
+  };
+  // deadline prono championnat
+  const saveDeadBtn = document.getElementById('saveChampDeadline');
+  if(saveDeadBtn) saveDeadBtn.onclick = async ()=>{
+    const input = document.getElementById('champDeadlineInput');
+    const msg = document.getElementById('cdbMsg');
+    const set = (t,c)=>{ msg.textContent=t; msg.className='msg show '+c; };
+    if(!input.value){ set('Choisis une date et une heure.', 'err'); return; }
+    const iso = new Date(input.value).toISOString();
+    const { error } = await sb.from('config_champ')
+      .upsert({ championnat: currentChamp, champ_closes_at: iso }, { onConflict:'championnat' });
+    if(error){ set('Erreur : '+error.message, 'err'); return; }
+    CHAMP_CLOSES_AT = iso; CHAMP_CLOSES_LOADED_FOR = currentChamp;
+    set('✓ Date de fermeture enregistrée !', 'ok');
+  };
+  const clearDeadBtn = document.getElementById('clearChampDeadline');
+  if(clearDeadBtn) clearDeadBtn.onclick = async ()=>{
+    if(!confirm('Retirer la deadline ? Les pronos championnat resteront ouverts (sauf si le championnat est marqué terminé).')) return;
+    const { error } = await sb.from('config_champ')
+      .upsert({ championnat: currentChamp, champ_closes_at: null }, { onConflict:'championnat' });
+    if(error){ alert('Erreur : '+error.message); return; }
+    CHAMP_CLOSES_AT = null; CHAMP_CLOSES_LOADED_FOR = currentChamp;
+    renderAdminResultats(body);
   };
   body.querySelectorAll('.admin-row:not([disabled])').forEach(b=>{
     b.onclick = ()=> openResultEntry(+b.dataset.manche, manches.find(m=>m.id==b.dataset.manche));
