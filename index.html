@@ -1106,6 +1106,14 @@ header::after{
 .cl-phead:hover{background:#0d2030}
 .cl-ava{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;
   font-family:'Archivo Black',sans-serif;font-size:16px;color:#08131f;flex-shrink:0}
+.cl-ava-wrap{position:relative;flex-shrink:0;width:38px;height:38px}
+.cl-dot{position:absolute;bottom:-1px;right:-1px;width:12px;height:12px;border-radius:50%;
+  background:var(--bone-dim);border:2px solid var(--night)}
+.cl-dot.on{background:#3cbe78;box-shadow:0 0 0 0 rgba(60,190,120,.6);animation:pulseDot 2s infinite}
+@keyframes pulseDot{0%{box-shadow:0 0 0 0 rgba(60,190,120,.5)}70%{box-shadow:0 0 0 6px rgba(60,190,120,0)}100%{box-shadow:0 0 0 0 rgba(60,190,120,0)}}
+.cl-seen{font-family:-apple-system,sans-serif;font-size:11px;font-weight:400;color:var(--bone-dim);
+  text-transform:none;letter-spacing:0;margin-left:6px}
+.cl-seen.online{color:#3cbe78;font-weight:600}
 .cl-pname{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:18px;color:#fff;flex:1;
   text-transform:uppercase;letter-spacing:.02em}
 .cl-pcount{font-size:11px;color:var(--bone-dim);font-family:'Barlow Condensed',sans-serif;
@@ -1138,6 +1146,36 @@ header::after{
   background:var(--night);border:1px solid var(--line2);font-family:'Barlow Condensed',sans-serif;
   font-weight:600;font-size:12.5px;color:var(--bone)}
 .cl-intel-champ{font-size:10px;color:var(--bone-dim);text-transform:uppercase;letter-spacing:.03em}
+
+/* podiums championnat (final) dans Pronos du club */
+.cl-champ-final{margin-top:14px;padding:12px;border-radius:11px;
+  background:rgba(240,190,70,.07);border:1px solid rgba(240,190,70,.35)}
+.cl-cf-head{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12.5px;color:var(--gold,#f0be46);
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+
+/* section participation aux pronos championnat */
+.part-box{margin:4px 0 18px;padding:14px;border-radius:14px;background:var(--night);border:1px solid var(--line2)}
+.part-box-head{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:#fff;
+  text-transform:uppercase;letter-spacing:.02em;margin-bottom:3px}
+.part-box-sub{font-size:12px;color:var(--bone-dim);margin-bottom:12px;line-height:1.4}
+.part-champ{padding:11px;border-radius:11px;background:var(--night2);border:1px solid var(--line);margin-bottom:10px}
+.part-champ:last-child{margin-bottom:0}
+.part-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.part-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:var(--cyan);
+  text-transform:uppercase;letter-spacing:.02em}
+.part-count{font-size:12px;color:var(--bone-dim);font-weight:600}
+.part-group{margin-bottom:8px}
+.part-group:last-child{margin-bottom:0}
+.part-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11.5px;
+  text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
+.part-lbl.on{color:var(--green,#3cbe78)}
+.part-lbl.off{color:#ff8a80}
+.part-chips{display:flex;flex-wrap:wrap;gap:5px}
+.part-chip{padding:3px 9px;border-radius:20px;font-family:'Barlow Condensed',sans-serif;
+  font-weight:600;font-size:12.5px;border:1px solid var(--line2)}
+.part-chip.on{background:rgba(60,190,120,.12);border-color:rgba(60,190,120,.4);color:#7fe0a8}
+.part-chip.off{background:var(--night);color:var(--bone-dim)}
+.part-none{font-size:12px;color:var(--bone-dim);font-style:italic}
 
 /* ===== CHAT DU CLUB ===== */
 #chatFab{position:fixed;right:18px;bottom:18px;z-index:900;width:60px;height:60px;border-radius:50%;
@@ -1605,6 +1643,63 @@ function renderRecreateProfil(session){
 let currentView = 'pronos';   // vue active dans un championnat
 let inChampScreen = false;    // false = page d'accueil (choix champ), true = dans un championnat
 
+// enregistre la dernière connexion du joueur (présence)
+async function markSeen(){
+  try{
+    if(!currentSession) return;
+    await sb.from('profils').update({ last_seen: new Date().toISOString() }).eq('id', currentSession.user.id);
+  }catch(e){}
+}
+
+// ===== PRÉSENCE TEMPS RÉEL (pastille verte) =====
+let presenceChannel = null;
+let onlineUsers = new Set(); // user_ids actuellement en ligne
+let onlineListeners = []; // callbacks à notifier quand la présence change
+
+function onPresenceChange(cb){ onlineListeners.push(cb); }
+function notifyPresence(){ onlineListeners.forEach(cb=>{ try{ cb(onlineUsers); }catch(e){} }); }
+
+function startPresence(){
+  if(presenceChannel || !currentSession) return;
+  const uid = currentSession.user.id;
+  presenceChannel = sb.channel('online-players', { config:{ presence:{ key: uid } } });
+  presenceChannel
+    .on('presence', { event:'sync' }, ()=>{
+      const state = presenceChannel.presenceState();
+      onlineUsers = new Set(Object.keys(state));
+      notifyPresence();
+    })
+    .subscribe(async (status)=>{
+      if(status==='SUBSCRIBED'){
+        await presenceChannel.track({ online_at: new Date().toISOString() });
+      }
+    });
+  // rafraîchit last_seen périodiquement tant que l'app est ouverte
+  if(!window.__seenInterval){
+    window.__seenInterval = setInterval(markSeen, 60000); // toutes les minutes
+  }
+}
+function stopPresence(){
+  if(presenceChannel){ try{ presenceChannel.unsubscribe(); }catch(e){} presenceChannel=null; }
+  if(window.__seenInterval){ clearInterval(window.__seenInterval); window.__seenInterval=null; }
+}
+// "il y a X" à partir d'une date ISO
+function timeAgo(iso){
+  if(!iso) return 'jamais vu';
+  const s = Math.floor((Date.now() - new Date(iso).getTime())/1000);
+  if(s < 60) return 'à l\'instant';
+  const m = Math.floor(s/60);
+  if(m < 60) return `il y a ${m} min`;
+  const h = Math.floor(m/60);
+  if(h < 24) return `il y a ${h}h`;
+  const j = Math.floor(h/24);
+  if(j < 7) return `il y a ${j} j`;
+  const sem = Math.floor(j/7);
+  if(sem < 5) return `il y a ${sem} sem.`;
+  const mois = Math.floor(j/30);
+  return `il y a ${mois} mois`;
+}
+
 async function renderHome(session){
   currentSession = session;
   app.innerHTML = `<div class="card"><div class="loading">Chargement…</div></div>`;
@@ -1615,6 +1710,9 @@ async function renderHome(session){
     return renderRecreateProfil(session);
   }
   window._isAdmin = !!profil?.is_admin;
+  // enregistre la dernière connexion (présence)
+  markSeen();
+  startPresence();
   // démarre sur la page d'accueil (choix du championnat)
   inChampScreen = false;
   renderShell();
@@ -3838,16 +3936,18 @@ async function openMancheProno(mancheId, manche){
 async function renderClubAll(v){
   v.innerHTML = `<div class="card"><div class="loading">Chargement des pronos du club…</div></div>`;
 
-  const [profilsR, pilotesR, manchesR, pronosR] = await Promise.all([
-    sb.from('profils').select('id,pseudo,avatar,prenom,nom'),
+  const [profilsR, pilotesR, manchesR, pronosR, pchampR] = await Promise.all([
+    sb.from('profils').select('id,pseudo,avatar,prenom,nom,last_seen'),
     sb.from('pilotes').select('id,nom,numero,championnat'),
     sb.from('manches').select('*'),
-    sb.from('pronos').select('*')
+    sb.from('pronos').select('*'),
+    sb.from('pronos_championnat').select('*')
   ]);
   const profils = profilsR.data || [];
   const pilotes = pilotesR.data || [];
   const manches = manchesR.data || [];
   const pronos  = pronosR.data || [];
+  const pchamp  = pchampR.data || [];
 
   // maps
   const pidName = {};
@@ -3885,9 +3985,31 @@ async function renderClubAll(v){
     set[m.id] = { nom:m.nom, champ:m.championnat, ordre:m.ordre };
   });
 
+  // PRONOS CHAMPIONNAT : révélés seulement pour les championnats TERMINÉS
+  // (on recharge l'état terminé pour être sûr qu'il est à jour)
+  let champTermine = {};
+  try{
+    const { data: meta } = await sb.from('championnats_meta').select('championnat,termine');
+    (meta||[]).forEach(r=>{ champTermine[r.championnat] = !!r.termine; });
+  }catch(e){ champTermine = {...CHAMP_TERMINE}; }
+  // champPronosByUser[uid][champ] = [ligne par catégorie]
+  const champPronosByUser = {};
+  pchamp.forEach(pc=>{
+    if(!champTermine[pc.championnat]) return; // pas révélé tant que le champ n'est pas terminé
+    const u = champPronosByUser[pc.user_id] = champPronosByUser[pc.user_id] || {};
+    (u[pc.championnat] = u[pc.championnat] || []).push(pc);
+  });
+
+  // PARTICIPATION au prono championnat : qui a joué / pas joué (sans révéler le contenu)
+  // on regarde les championnats qui ont AU MOINS un prono championnat (donc concernés)
+  const champsAvecProno = [...new Set(pchamp.map(pc=>pc.championnat))];
+  const aJoueChamp = {}; // aJoueChamp[champ] = Set(user_id)
+  champsAvecProno.forEach(c=> aJoueChamp[c] = new Set());
+  pchamp.forEach(pc=>{ aJoueChamp[pc.championnat].add(pc.user_id); });
+
   // tri des joueurs : actifs (podiums passés OU intel à venir) d'abord, par pseudo
   profils.forEach(p=>{ if(p.avatar) AVATARS[p.id]=p.avatar; });
-  const isActive = id => !!byUser[id] || !!intelByUser[id];
+  const isActive = id => !!byUser[id] || !!intelByUser[id] || !!champPronosByUser[id];
   const players = profils.slice().sort((a,b)=>{
     const ca = isActive(a.id)?1:0, cb = isActive(b.id)?1:0;
     if(ca!==cb) return cb-ca;
@@ -3918,11 +4040,34 @@ async function renderClubAll(v){
     return;
   }
 
+  // bloc "pronos championnat" (podium final) — révélé si le championnat est terminé
+  const champBlock = (uid)=>{
+    const byChamp = champPronosByUser[uid];
+    if(!byChamp || !Object.keys(byChamp).length) return '';
+    const blocks = champOrder.filter(c=>byChamp[c]).map(champ=>{
+      const arr = byChamp[champ];
+      const rows = arr.map(pc=>{
+        const l1=pidName[pc.p1_pilote_id]||'?', l2=pidName[pc.p2_pilote_id]||'?', l3=pidName[pc.p3_pilote_id]||'?';
+        const l5 = pc.joue_bonus5 ? (pidName[pc.p5_pilote_id]||'?') : null;
+        const catTag = (arr.length>1) ? `<span class="cl-cat">${pc.categorie}</span>` : '';
+        return `<div>${catTag}🥇 ${l1} · 🥈 ${l2} · 🥉 ${l3}${l5?` · <span class="cl-5">5e ${l5}</span>`:''}</div>`;
+      }).join('');
+      return `<div class="cl-row"><span class="cl-manche">🏆 ${CHAMP_LABELS[champ]||champ}</span><span class="cl-pod">${rows}</span></div>`;
+    }).join('');
+    return `<div class="cl-champ-final"><div class="cl-cf-head">🏆 Podiums championnat (final)</div>${blocks}</div>`;
+  };
+
   const playersHtml = players.map(pl=>{
     const data = byUser[pl.id];
     const col = avatarBg(pl.id, pl.pseudo);
     const intel = intelBlock(pl.id);
     const ini = avatarInner(pl.id, pl.pseudo);
+    // avatar avec pastille de présence + statut (en ligne / vu il y a X)
+    const isOnline = onlineUsers.has(pl.id);
+    const avaHtml = `<span class="cl-ava-wrap"><span class="cl-ava" style="background:${col}">${ini}</span><span class="cl-dot ${isOnline?'on':''}" data-uid="${pl.id}"></span></span>`;
+    const statutHtml = isOnline
+      ? `<span class="cl-seen online" data-uid="${pl.id}">● en ligne</span>`
+      : `<span class="cl-seen" data-uid="${pl.id}">${timeAgo(pl.last_seen)}</span>`;
     // identité affichée dans le détail : "Prénom N." (uniquement ici, dans Le club)
     const prenom = (pl.prenom||'').trim();
     const nomIni = (pl.nom||'').trim().charAt(0).toUpperCase();
@@ -3931,13 +4076,15 @@ async function renderClubAll(v){
       : '';
 
     if(!data){
-      // pas de podium révélé, mais peut-être de l'intel à venir
-      const sub = intel ? "pronos à venir 👀" : "aucun prono révélé";
-      const inner = intel || `<div class="cl-none">Ce joueur n'a pas encore de prono.</div>`;
+      // pas de podium de manche révélé, mais peut-être de l'intel ou des pronos championnat
+      const cf = champBlock(pl.id);
+      const hasContent = intel || cf;
+      const sub = cf ? "podium champ. révélé 🏆" : (intel ? "pronos à venir 👀" : "aucun prono révélé");
+      const inner = hasContent ? `${cf}${intel}` : `<div class="cl-none">Ce joueur n'a pas encore de prono.</div>`;
       return `<div class="cl-player" data-uid="${pl.id}">
         <div class="cl-phead">
-          <span class="cl-ava" style="background:${col}">${ini}</span>
-          <span class="cl-pname">${pl.pseudo}</span>
+          ${avaHtml}
+          <span class="cl-pname">${pl.pseudo} ${statutHtml}</span>
           <span class="cl-pcount">${sub}</span>
           <span class="cl-chev">▸</span>
         </div>
@@ -3967,18 +4114,49 @@ async function renderClubAll(v){
 
     return `<div class="cl-player" data-uid="${pl.id}">
       <div class="cl-phead">
-        <span class="cl-ava" style="background:${col}">${ini}</span>
-        <span class="cl-pname">${pl.pseudo}</span>
+        ${avaHtml}
+        <span class="cl-pname">${pl.pseudo} ${statutHtml}</span>
         <span class="cl-pcount">${nb} podium${nb>1?'s':''}</span>
         <span class="cl-chev">▸</span>
       </div>
-      <div class="cl-pbody"><div class="cl-pinner">${identite}${champsHtml}${intel}</div></div>
+      <div class="cl-pbody"><div class="cl-pinner">${identite}${champsHtml}${champBlock(pl.id)}${intel}</div></div>
     </div>`;
   }).join('');
 
+  // ----- section participation au prono championnat -----
+  const pseudoById = {}; profils.forEach(p=> pseudoById[p.id]=p.pseudo);
+  const participationHtml = champsAvecProno.length ? champOrder.filter(c=>champsAvecProno.includes(c)).map(champ=>{
+    const joue = aJoueChamp[champ];
+    const ontJoue = profils.filter(p=> joue.has(p.id));
+    const pasJoue = profils.filter(p=> !joue.has(p.id));
+    const chip = (p,on)=> `<span class="part-chip ${on?'on':'off'}">${p.pseudo}</span>`;
+    return `<div class="part-champ">
+      <div class="part-head">
+        <span class="part-title">🏆 ${CHAMP_LABELS[champ]||champ}</span>
+        <span class="part-count">${ontJoue.length}/${profils.length} ont joué</span>
+      </div>
+      <div class="part-group">
+        <div class="part-lbl on">✓ Ont fait leur podium (${ontJoue.length})</div>
+        <div class="part-chips">${ontJoue.length ? ontJoue.map(p=>chip(p,true)).join('') : '<span class="part-none">Personne pour l\'instant</span>'}</div>
+      </div>
+      <div class="part-group">
+        <div class="part-lbl off">✗ Pas encore joué (${pasJoue.length})</div>
+        <div class="part-chips">${pasJoue.length ? pasJoue.map(p=>chip(p,false)).join('') : '<span class="part-none">Tout le monde a joué ! 🎉</span>'}</div>
+      </div>
+    </div>`;
+  }).join('') : '';
+
+  const participationSection = participationHtml ? `
+    <div class="part-box">
+      <div class="part-box-head">📋 Participation aux pronos championnat</div>
+      <div class="part-box-sub">Qui a fait son podium final (le contenu reste secret jusqu'à la fin du championnat).</div>
+      ${participationHtml}
+    </div>` : '';
+
   v.innerHTML = `<div class="card">
     <div class="sec-title">👥 Pronos du club</div>
-    <div class="cl-intro">Les pronos de tout le monde, tous championnats confondus. Seules les manches <b>fermées</b> sont révélées — touche un joueur pour déplier ses pronos.</div>
+    <div class="cl-intro">Les pronos de tout le monde, tous championnats confondus. Les manches <b>fermées</b> et les podiums championnat des championnats <b>terminés</b> sont révélés — touche un joueur pour déplier ses pronos.</div>
+    ${participationSection}
     ${playersHtml}
   </div>`;
 
@@ -3989,6 +4167,20 @@ async function renderClubAll(v){
       card.classList.toggle('open');
     };
   });
+
+  // mise à jour en direct des pastilles quand la présence change
+  const refreshDots = (online)=>{
+    v.querySelectorAll('.cl-dot').forEach(dot=>{
+      const uid = dot.dataset.uid;
+      dot.classList.toggle('on', online.has(uid));
+    });
+    v.querySelectorAll('.cl-seen').forEach(el=>{
+      const uid = el.dataset.uid;
+      if(online.has(uid)){ el.textContent='● en ligne'; el.classList.add('online'); }
+    });
+  };
+  onPresenceChange(refreshDots);
+  refreshDots(onlineUsers);
 }
 
 // Affiche les pronos de tous les joueurs pour une manche fermée
