@@ -1008,6 +1008,12 @@ header::after{
   font-size:13px;white-space:nowrap}
 .reg-bonus{margin-top:10px;padding:11px;background:rgba(226,59,46,.08);border:1px solid rgba(226,59,46,.25);
   border-radius:9px;font-size:13px!important}
+/* notes de départage d'égalité */
+.rk-tie{display:block;font-family:-apple-system,sans-serif;font-size:10.5px;font-weight:400;
+  color:var(--cyan);text-transform:none;letter-spacing:0;margin-top:2px;opacity:.85}
+.det-tie{background:rgba(92,198,232,.1);border:1px solid rgba(92,198,232,.3);border-radius:8px;
+  padding:8px 10px;font-size:12.5px;color:var(--bone);margin-bottom:8px;line-height:1.4}
+.det-tie b{color:var(--cyan)}
 .reg-prizes .reg-h{color:#ffd954}
 .reg-prizes{padding:14px;background:rgba(255,217,84,.06);border:1px solid rgba(255,217,84,.2);border-radius:11px}
 .reg-foot{text-align:center;color:var(--bone-dim);font-size:13px;margin-top:20px;
@@ -2967,6 +2973,12 @@ function renderRegles(v){
             <p class="reg-bonus"><b>Bonus podium parfait</b> : 3 pilotes dans l'ordre exact = <b>+3 pts</b> (soit 18) !</p>
             <p class="reg-bonus"><b>Bonus 5e place</b> (optionnel, à double tranchant) : tu trouves le 5e → tes points de la catégorie sont <b>doublés</b> ! Tu te trompes → tu perds <b>5 pts</b>. À jouer si tu le sens. 🎲</p>
             <p class="reg-bonus" style="background:rgba(60,190,120,.08);border-color:rgba(60,190,120,.3)"><b>✓ Pas de score négatif</b> : le total d'une manche ne descend jamais en dessous de <b>0</b>. Même si le malus du bonus 5e dépasse tes points, tu tombes au minimum à 0, jamais dans le rouge.</p>
+            <p class="reg-bonus" style="background:rgba(92,198,232,.08);border-color:rgba(92,198,232,.3)"><b>⚖️ En cas d'égalité de points</b>, les joueurs sont départagés dans cet ordre :<br>
+              1. Le plus de <b>podiums parfaits</b> (top 3 dans l'ordre exact)<br>
+              2. Puis le plus de <b>bonus 5e trouvés</b><br>
+              3. Puis le plus de <b>pronos joués</b> (l'assiduité)<br>
+              4. En dernier recours, l'ordre alphabétique du pseudo.<br>
+              Au classement, la raison du départage est indiquée sous le nom du joueur concerné.</p>
 
             <div class="reg-h">Le prono championnat</div>
             <p>En plus des courses, tu pronostiques le <b>podium final du championnat</b>. Il ferme à la <b>mi-saison</b> et, une fois validé, c'est <b>définitif</b> ! Barème plus généreux :</p>
@@ -3290,7 +3302,8 @@ async function renderClassement(v){
   const myCats = cats();
   const pts = {};     // pts[userId] = { cat: points }
   const detail = {};  // detail[userId] = [{manche, cat, points}...]
-  profils.forEach(p=>{ pts[p.id]={}; myCats.forEach(c=>pts[p.id][c]=0); detail[p.id]=[]; });
+  const tb = {};      // départage : tb[userId] = { parfaits, bonus5, joues }
+  profils.forEach(p=>{ pts[p.id]={}; myCats.forEach(c=>pts[p.id][c]=0); detail[p.id]=[]; tb[p.id]={parfaits:0,bonus5:0,joues:0}; });
 
   // points manches
   pronos.forEach(pr=>{
@@ -3300,6 +3313,13 @@ async function renderClassement(v){
       pts[pr.user_id][pr.categorie] += gain;
       const m = mancheById[pr.manche_id];
       detail[pr.user_id].push({ label:(m?m.nom:'Manche'), cat:pr.categorie, points:gain, ordre:(m?m.ordre:99) });
+      // stats de départage
+      const bd = scoreBreakdown(pr, res);
+      if(bd){
+        tb[pr.user_id].joues++;
+        if(bd.parfait>0) tb[pr.user_id].parfaits++;
+        if(bd.double5) tb[pr.user_id].bonus5++;
+      }
     }
   });
   // points championnat
@@ -3320,8 +3340,39 @@ async function renderClassement(v){
     const perCat = {}; myCats.forEach(c=> perCat[c]=pts[p.id][c]||0);
     const totalAll = myCats.reduce((s,c)=> s+perCat[c], 0);
     const total = cat==='global' ? totalAll : (perCat[cat]||0);
-    return { id:p.id, pseudo:p.pseudo, perCat, total, detail:detail[p.id] };
-  }).sort((a,b)=> b.total - a.total);
+    const t = tb[p.id] || {parfaits:0,bonus5:0,joues:0};
+    return { id:p.id, pseudo:p.pseudo, perCat, total, detail:detail[p.id],
+             parfaits:t.parfaits, bonus5:t.bonus5, joues:t.joues };
+  }).sort((a,b)=>{
+    // cascade de départage : points > podiums parfaits > bonus 5e > manches jouées > pseudo
+    if(b.total !== a.total) return b.total - a.total;
+    if(b.parfaits !== a.parfaits) return b.parfaits - a.parfaits;
+    if(b.bonus5 !== a.bonus5) return b.bonus5 - a.bonus5;
+    if(b.joues !== a.joues) return b.joues - a.joues;
+    return (a.pseudo||'').localeCompare(b.pseudo||'');
+  });
+
+  // détecter les départages : pour chaque joueur à égalité de points avec le précédent,
+  // noter le critère qui l'a fait passer devant / derrière
+  ranked.forEach((r, i)=>{
+    r.tieNote = null;
+    // cherche un voisin (au-dessus ou en dessous) avec le même total
+    const prev = ranked[i-1], next = ranked[i+1];
+    const egalPrev = prev && prev.total===r.total;
+    const egalNext = next && next.total===r.total;
+    if(!egalPrev && !egalNext) return; // pas d'égalité
+    // décrire pourquoi r est là où il est (le premier critère qui le distingue de son groupe)
+    const rival = egalPrev ? prev : next;
+    if(r.parfaits !== rival.parfaits){
+      r.tieNote = `${r.parfaits} podium${r.parfaits>1?'s':''} parfait${r.parfaits>1?'s':''}`;
+    } else if(r.bonus5 !== rival.bonus5){
+      r.tieNote = `${r.bonus5} bonus 5e trouvé${r.bonus5>1?'s':''}`;
+    } else if(r.joues !== rival.joues){
+      r.tieNote = `${r.joues} prono${r.joues>1?'s':''} joué${r.joues>1?'s':''}`;
+    } else {
+      r.tieNote = `ordre alphabétique`;
+    }
+  });
 
   const hasAnyResult = resultats.length>0 || rchamp.length>0;
 
@@ -3511,12 +3562,15 @@ function detailLines(r, cat){
   const items = (r.detail||[])
     .filter(d => cat==='global' ? true : d.cat===cat)
     .sort((a,b)=> a.ordre-b.ordre);
-  return items.length
+  // bandeau d'explication du départage (si égalité)
+  const tieBanner = r.tieNote ? `<div class="det-tie">⚖️ À égalité de points : départagé grâce à <b>${r.tieNote}</b>.</div>` : '';
+  const lines = items.length
     ? items.map(d=>`<div class="det-line">
         <span class="det-label">${d.label} <span class="det-cat">${d.cat}</span></span>
         <span class="det-pts ${d.points<0?'neg':''}">${d.points>0?'+':''}${d.points}</span>
       </div>`).join('')
     : '<div class="det-empty">Aucun point sur cette catégorie pour le moment.</div>';
+  return tieBanner + lines;
 }
 
 function rankRow(r, i, cat, myCats){
@@ -3530,9 +3584,12 @@ function rankRow(r, i, cat, myCats){
   // construire le détail (filtré selon la catégorie affichée)
   const detailHtml = detailLines(r, cat);
 
+  // note de départage si égalité de points avec un voisin
+  const tie = r.tieNote ? `<span class="rk-tie" title="Départagé : ${r.tieNote}">= départagé : ${r.tieNote}</span>` : '';
+
   return `<tr class="rank-row" data-uid="${r.id}">
     <td>${rankBadge}</td>
-    <td class="rk-name">${r.pseudo}</td>
+    <td class="rk-name">${r.pseudo}${tie}</td>
     ${cols}
     <td class="rk-total">${r.total}</td>
   </tr>
