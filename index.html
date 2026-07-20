@@ -481,6 +481,36 @@ header::after{
 .menu-item .mi-ico{font-size:18px;width:24px;text-align:center}
 .menu-item.danger{color:#ff6b5e;margin-top:auto;border-bottom:none;border-top:1px solid var(--line2)}
 
+/* pop-up des pronos non pariés qui ferment bientôt */
+.unbet-overlay{position:fixed;inset:0;z-index:9998;background:rgba(6,16,24,.72);
+  display:flex;align-items:center;justify-content:center;padding:18px;
+  backdrop-filter:blur(3px);animation:unbetFade .2s ease}
+@keyframes unbetFade{from{opacity:0}to{opacity:1}}
+.unbet-modal{width:100%;max-width:420px;background:var(--night2);border:1px solid var(--cyan);
+  border-radius:18px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.5);
+  animation:unbetPop .25s cubic-bezier(.2,.8,.3,1.2)}
+@keyframes unbetPop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+.unbet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.unbet-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:20px;color:#fff;
+  text-transform:uppercase;letter-spacing:.02em}
+.unbet-close{background:none;border:none;color:var(--bone-dim);font-size:26px;cursor:pointer;line-height:1;padding:0 4px}
+.unbet-sub{font-size:12.5px;color:var(--bone-dim);margin-bottom:14px;line-height:1.4}
+.unbet-list{display:flex;flex-direction:column;gap:9px;max-height:52vh;overflow-y:auto;margin-bottom:14px}
+.unbet-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 13px;
+  border-radius:12px;cursor:pointer;background:var(--night);border:1px solid var(--line2);
+  transition:transform .1s ease,border-color .1s ease}
+.unbet-row:hover{transform:translateY(-1px);border-color:var(--cyan)}
+.unbet-row.urgent{border-color:rgba(226,59,46,.5);background:rgba(226,59,46,.06)}
+.unbet-row .ur-ico{font-size:22px;flex-shrink:0}
+.unbet-row .ur-body{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.unbet-row .ur-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:#fff;
+  text-transform:uppercase;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.unbet-row .ur-sub{font-size:11.5px;color:var(--bone-dim)}
+.unbet-row .ur-time{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;
+  color:var(--cyan);flex-shrink:0;text-align:right}
+.unbet-row .ur-time.urgent{color:#ff6b5e}
+.unbet-later{width:100%}
+
 /* écran réglages notifications */
 .notif-drawer{width:340px;padding-bottom:18px}
 .notif-body{padding:18px}
@@ -1723,6 +1753,137 @@ function timeAgo(iso){
   return `il y a ${mois} mois`;
 }
 
+// ====== POP-UP : pronos non pariés qui ferment bientôt ======
+let __unbetShown = false; // pour n'afficher qu'une fois par session
+
+async function checkUnbetPronos(force){
+  if(!currentSession) return;
+  if(__unbetShown && !force) return;
+  const uid = currentSession.user.id;
+  const now = Date.now();
+  const H48 = 48*3600*1000;
+
+  // charge : manches, pronos manche du joueur, pronos championnat du joueur, meta terminé, config deadlines
+  const [manchesR, pronosR, pchampR, metaR, cfgR] = await Promise.all([
+    sb.from('manches').select('*'),
+    sb.from('pronos').select('manche_id,categorie').eq('user_id', uid),
+    sb.from('pronos_championnat').select('championnat').eq('user_id', uid),
+    sb.from('championnats_meta').select('championnat,termine'),
+    sb.from('config_champ').select('championnat,champ_closes_at')
+  ]);
+  const manches = manchesR.data||[];
+  const monPronoSet = new Set((pronosR.data||[]).map(p=> p.manche_id+'-'+p.categorie));
+  const monChampSet = new Set((pchampR.data||[]).map(p=> p.championnat));
+  const termine = {}; (metaR.data||[]).forEach(r=> termine[r.championnat]=!!r.termine);
+  const champDeadline = {}; (cfgR.data||[]).forEach(r=> champDeadline[r.championnat]=r.champ_closes_at);
+
+  const items = []; // { type, champ, nom, closeTs, mancheId, manche, cats:[...] }
+
+  // 1) manches ouvertes qui ferment dans <48h, avec au moins une catégorie non pariée
+  manches.forEach(m=>{
+    if(m.annulee) return;
+    if(termine[m.championnat]) return;
+    if(!m.closes_at) return;
+    const closeTs = new Date(m.closes_at).getTime();
+    const delta = closeTs - now;
+    if(delta<=0 || delta>H48) return; // pas dans la fenêtre 48h
+    const cats = (Array.isArray(m.categories)&&m.categories.length) ? m.categories : (CHAMP_CATS[m.championnat]||['450','250']);
+    const manquantes = cats.filter(c=> !monPronoSet.has(m.id+'-'+c));
+    if(manquantes.length){
+      items.push({ type:'manche', champ:m.championnat, nom:m.nom, closeTs, mancheId:m.id, manche:m, cats:manquantes });
+    }
+  });
+
+  // 2) pronos championnat ouverts (deadline <48h) non faits
+  Object.keys(champDeadline).forEach(champ=>{
+    if(termine[champ]) return;
+    const dl = champDeadline[champ];
+    if(!dl) return;
+    const closeTs = new Date(dl).getTime();
+    const delta = closeTs - now;
+    if(delta<=0 || delta>H48) return;
+    if(!monChampSet.has(champ)){
+      items.push({ type:'champ', champ, nom:'Podium championnat', closeTs });
+    }
+  });
+
+  if(!items.length){ return; } // rien à rappeler
+
+  items.sort((a,b)=> a.closeTs - b.closeTs); // le plus urgent en premier
+  __unbetShown = true;
+  showUnbetPopup(items);
+}
+
+function fmtCountdown(closeTs){
+  const s = Math.floor((closeTs - Date.now())/1000);
+  if(s<=0) return 'fermé';
+  const h = Math.floor(s/3600);
+  const m = Math.floor((s%3600)/60);
+  if(h>=1) return `ferme dans ${h}h${m>0?' '+m+'min':''}`;
+  return `ferme dans ${m} min`;
+}
+
+function showUnbetPopup(items){
+  const old = document.getElementById('unbetOverlay'); if(old) old.remove();
+  const ov = document.createElement('div');
+  ov.id = 'unbetOverlay';
+  ov.className = 'unbet-overlay';
+  const rows = items.map((it,i)=>{
+    const urgent = (it.closeTs - Date.now()) < 12*3600*1000;
+    const sub = it.type==='champ'
+      ? `Championnat · ${it.cats?'':''}`
+      : `${it.cats.length} catégorie${it.cats.length>1?'s':''} à jouer`;
+    return `<button class="unbet-row ${urgent?'urgent':''}" data-idx="${i}">
+      <span class="ur-ico">${it.type==='champ'?'🏆':'🏁'}</span>
+      <span class="ur-body">
+        <span class="ur-title">${CHAMP_LABELS[it.champ]||it.champ} · ${it.nom}</span>
+        <span class="ur-sub">${sub}</span>
+      </span>
+      <span class="ur-time ${urgent?'urgent':''}">${fmtCountdown(it.closeTs)}</span>
+    </button>`;
+  }).join('');
+  ov.innerHTML = `
+    <div class="unbet-modal">
+      <div class="unbet-head">
+        <span class="unbet-title">⏰ Tu as des pronos à jouer !</span>
+        <button class="unbet-close" id="unbetClose">×</button>
+      </div>
+      <p class="unbet-sub">Ces pronos ferment dans moins de 48h et tu n'as pas encore joué. Tape pour y aller directement.</p>
+      <div class="unbet-list">${rows}</div>
+      <button class="btn unbet-later" id="unbetLater">Plus tard</button>
+    </div>`;
+  document.body.appendChild(ov);
+  const close = ()=> ov.remove();
+  ov.onclick = e=>{ if(e.target===ov) close(); };
+  document.getElementById('unbetClose').onclick = close;
+  document.getElementById('unbetLater').onclick = close;
+  ov.querySelectorAll('.unbet-row').forEach(btn=>{
+    btn.onclick = ()=>{
+      const it = items[+btn.dataset.idx];
+      close();
+      goToUnbet(it);
+    };
+  });
+}
+
+// navigue vers le prono manquant (manche ou championnat)
+function goToUnbet(it){
+  currentChamp = it.champ; PILOTES = {}; CHAMP_CLOSES_LOADED_FOR = null;
+  inChampScreen = true; currentView = 'pronos';
+  renderShell(); checkAlerts();
+  setTimeout(async ()=>{
+    if(it.type==='champ'){
+      pronosState.tab = 'champ';
+      switchView('pronos');
+    } else {
+      pronosState.tab = 'manches';
+      await loadPilotes();
+      const { data: m } = await sb.from('manches').select('*').eq('id', it.mancheId).single();
+      if(m){ openMancheProno(m.id, m); } else { switchView('pronos'); }
+    }
+  }, 60);
+}
+
 async function renderHome(session){
   currentSession = session;
   app.innerHTML = `<div class="card"><div class="loading">Chargement…</div></div>`;
@@ -1741,6 +1902,8 @@ async function renderHome(session){
   renderShell();
   initChat();
   renderInstallBanner();
+  // pop-up des pronos non pariés qui ferment bientôt (une fois par session)
+  setTimeout(()=> checkUnbetPronos(false), 800);
 }
 
 // construit la coquille (topbar + burger) puis le contenu selon l'état
@@ -1994,6 +2157,7 @@ function openMenu(){
         <button class="menu-close" id="menuClose">×</button>
       </div>
       <button class="menu-item" data-act="messtats"><span class="mi-ico">📊</span> Mes stats</button>
+      <button class="menu-item" data-act="unbet"><span class="mi-ico">⏰</span> Mes pronos à jouer</button>
       <button class="menu-item" data-act="enbref"><span class="mi-ico">📰</span> En bref</button>
       <button class="menu-item" data-act="cluball"><span class="mi-ico">👥</span> Le club</button>
       <button class="menu-item" data-act="chat"><span class="mi-ico">💬</span> Chat du club</button>
@@ -2015,6 +2179,7 @@ function openMenu(){
       if(act==='profil'){ openProfil(currentProfil); return; }
       if(act==='chat'){ toggleChat(true); return; }
       if(act==='notifs'){ openNotifSettings(); return; }
+      if(act==='unbet'){ checkUnbetPronos(true); return; }
       // vues globales (cluball, regles, admin) : on les ouvre dans #view, en mode "hors championnat"
       openGlobalView(act);
     };
