@@ -1141,6 +1141,15 @@ header::after{
 .cl-pod .cl-cat{display:inline-block;font-size:10px;font-weight:700;color:var(--cyan);
   font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;margin-right:6px;letter-spacing:.03em}
 .cl-pod .cl-5{color:#ffd954}
+/* indicateur podium parfait dans Le club */
+.cl-pod-line{padding:2px 0}
+.cl-pod-line.perfect{background:linear-gradient(90deg,rgba(255,217,84,.14),transparent);
+  border-left:3px solid #ffd954;padding:4px 8px;border-radius:6px;margin:3px 0}
+.cl-perfect{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  font-size:10px;color:#08131f;background:#ffd954;padding:1px 7px;border-radius:20px;
+  letter-spacing:.05em;vertical-align:middle;margin-right:4px}
+.cl-badge5{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  font-size:10px;color:#08131f;background:#5cc6e8;padding:1px 6px;border-radius:20px;letter-spacing:.03em}
 .cl-none{color:var(--bone-dim);font-style:italic;font-size:13px;padding:8px 2px}
 .cl-empty{text-align:center;color:var(--bone-dim);padding:30px 16px;line-height:1.6}
 .cl-intel{margin-top:14px;padding:11px 12px;border-radius:11px;
@@ -3999,18 +4008,23 @@ async function openMancheProno(mancheId, manche){
 async function renderClubAll(v){
   v.innerHTML = `<div class="card"><div class="loading">Chargement des pronos du club…</div></div>`;
 
-  const [profilsR, pilotesR, manchesR, pronosR, pchampR] = await Promise.all([
+  const [profilsR, pilotesR, manchesR, pronosR, pchampR, resultatsR] = await Promise.all([
     sb.from('profils').select('id,pseudo,avatar,prenom,nom,last_seen'),
     sb.from('pilotes').select('id,nom,numero,championnat'),
     sb.from('manches').select('*'),
     sb.from('pronos').select('*'),
-    sb.from('pronos_championnat').select('*')
+    sb.from('pronos_championnat').select('*'),
+    sb.from('resultats').select('*')
   ]);
   const profils = profilsR.data || [];
   const pilotes = pilotesR.data || [];
   const manches = manchesR.data || [];
   const pronos  = pronosR.data || [];
   const pchamp  = pchampR.data || [];
+  const resultats = resultatsR.data || [];
+  // index des résultats par manche+catégorie (pour détecter les podiums parfaits)
+  const resByKey = {};
+  resultats.forEach(r=> resByKey[r.manche_id+'-'+r.categorie]=r);
 
   // maps
   const pidName = {};
@@ -4168,7 +4182,13 @@ async function renderClubAll(v){
           const l1=pidName[pr.p1_pilote_id]||'?', l2=pidName[pr.p2_pilote_id]||'?', l3=pidName[pr.p3_pilote_id]||'?';
           const l5 = pr.joue_bonus5 ? (pidName[pr.p5_pilote_id]||'?') : null;
           const catTag = (arr.length>1 || champ!=='MXdN') ? `<span class="cl-cat">${pr.categorie}</span>` : '';
-          return `<div>${catTag}🥇 ${l1} · 🥈 ${l2} · 🥉 ${l3}${l5?` · <span class="cl-5">5e ${l5}</span>`:''}</div>`;
+          // détecter un podium parfait (top 3 dans l'ordre exact)
+          const res = resByKey[pr.manche_id+'-'+pr.categorie];
+          const bd = res ? scoreBreakdown(pr, res) : null;
+          const parfait = bd && bd.parfait>0;
+          const badge5 = (bd && bd.double5) ? ` <span class="cl-badge5">5e ✓</span>` : '';
+          const badge = parfait ? `<span class="cl-perfect">★ PARFAIT</span> ` : '';
+          return `<div class="${parfait?'cl-pod-line perfect':'cl-pod-line'}">${badge}${catTag}🥇 ${l1} · 🥈 ${l2} · 🥉 ${l3}${l5?` · <span class="cl-5">5e ${l5}</span>`:''}${badge5}</div>`;
         }).join('');
         return `<div class="cl-row"><span class="cl-manche">${nom}</span><span class="cl-pod">${pods}</span></div>`;
       }).join('');
