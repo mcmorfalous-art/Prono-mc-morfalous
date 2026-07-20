@@ -1141,6 +1141,8 @@ header::after{
 .cl-pod .cl-cat{display:inline-block;font-size:10px;font-weight:700;color:var(--cyan);
   font-family:'Barlow Condensed',sans-serif;text-transform:uppercase;margin-right:6px;letter-spacing:.03em}
 .cl-pod .cl-5{color:#ffd954}
+.cl-5.ok{color:#3cbe78;font-weight:700}
+.cl-5.ko{color:#ff6b5e;font-weight:700;text-decoration:line-through;text-decoration-color:rgba(255,107,94,.5)}
 /* indicateur podium parfait dans Le club */
 .cl-pod-line{padding:2px 0}
 .cl-pod-line.perfect{background:linear-gradient(90deg,rgba(255,217,84,.14),transparent);
@@ -1170,8 +1172,14 @@ header::after{
 
 /* section participation aux pronos championnat */
 .part-box{margin:4px 0 18px;padding:14px;border-radius:14px;background:var(--night);border:1px solid var(--line2)}
-.part-box-head{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:#fff;
-  text-transform:uppercase;letter-spacing:.02em;margin-bottom:3px}
+.part-box-head{display:flex;align-items:center;justify-content:space-between;width:100%;
+  background:none;border:none;cursor:pointer;text-align:left;
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;color:#fff;
+  text-transform:uppercase;letter-spacing:.02em}
+.part-chev{color:var(--cyan);font-size:16px;transition:transform .2s ease}
+.part-box.open .part-chev{transform:rotate(90deg)}
+.part-box-body{max-height:0;overflow:hidden;opacity:0;transition:max-height .3s ease,opacity .25s ease,margin .2s ease}
+.part-box.open .part-box-body{max-height:3000px;opacity:1;margin-top:12px}
 .part-box-sub{font-size:12px;color:var(--bone-dim);margin-bottom:12px;line-height:1.4}
 .part-champ{padding:11px;border-radius:11px;background:var(--night2);border:1px solid var(--line);margin-bottom:10px}
 .part-champ:last-child{margin-bottom:0}
@@ -4186,9 +4194,21 @@ async function renderClubAll(v){
           const res = resByKey[pr.manche_id+'-'+pr.categorie];
           const bd = res ? scoreBreakdown(pr, res) : null;
           const parfait = bd && bd.parfait>0;
-          const badge5 = (bd && bd.double5) ? ` <span class="cl-badge5">5e ✓</span>` : '';
           const badge = parfait ? `<span class="cl-perfect">★ PARFAIT</span> ` : '';
-          return `<div class="${parfait?'cl-pod-line perfect':'cl-pod-line'}">${badge}${catTag}🥇 ${l1} · 🥈 ${l2} · 🥉 ${l3}${l5?` · <span class="cl-5">5e ${l5}</span>`:''}${badge5}</div>`;
+          // couleur du 5e selon le résultat : vert si trouvé, rouge si raté,
+          // neutre tant que le 5e réel n'est pas saisi dans les résultats
+          let l5html = '';
+          if(l5){
+            let cls = 'cl-5';       // neutre par défaut
+            let mark = '';
+            const res5connu = res && res.p5_pilote_id;   // le vrai 5e est-il saisi ?
+            if(res5connu){
+              if(bd && bd.double5){ cls = 'cl-5 ok'; mark = ' ✓'; }
+              else { cls = 'cl-5 ko'; mark = ' ✗'; }
+            }
+            l5html = ` · <span class="${cls}">5e ${l5}${mark}</span>`;
+          }
+          return `<div class="${parfait?'cl-pod-line perfect':'cl-pod-line'}">${badge}${catTag}🥇 ${l1} · 🥈 ${l2} · 🥉 ${l3}${l5html}</div>`;
         }).join('');
         return `<div class="cl-row"><span class="cl-manche">${nom}</span><span class="cl-pod">${pods}</span></div>`;
       }).join('');
@@ -4230,10 +4250,15 @@ async function renderClubAll(v){
   }).join('') : '';
 
   const participationSection = participationHtml ? `
-    <div class="part-box">
-      <div class="part-box-head">📋 Participation aux pronos championnat</div>
-      <div class="part-box-sub">Qui a fait son podium final (le contenu reste secret jusqu'à la fin du championnat).</div>
-      ${participationHtml}
+    <div class="part-box" id="partBox">
+      <button class="part-box-head" id="partToggle">
+        <span>📋 Participation aux pronos championnat</span>
+        <span class="part-chev">▸</span>
+      </button>
+      <div class="part-box-body" id="partBody">
+        <div class="part-box-sub">Qui a fait son podium final (le contenu reste secret jusqu'à la fin du championnat).</div>
+        ${participationHtml}
+      </div>
     </div>` : '';
 
   v.innerHTML = `<div class="card">
@@ -4250,6 +4275,15 @@ async function renderClubAll(v){
       card.classList.toggle('open');
     };
   });
+
+  // section participation dépliable
+  const partToggle = v.querySelector('#partToggle');
+  if(partToggle){
+    partToggle.onclick = ()=>{
+      const box = v.querySelector('#partBox');
+      if(box) box.classList.toggle('open');
+    };
+  }
 
   // mise à jour en direct des pastilles quand la présence change
   const refreshDots = (online)=>{
