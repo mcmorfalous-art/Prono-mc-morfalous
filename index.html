@@ -3302,8 +3302,11 @@ async function renderClassement(v){
   const myCats = cats();
   const pts = {};     // pts[userId] = { cat: points }
   const detail = {};  // detail[userId] = [{manche, cat, points}...]
-  const tb = {};      // départage : tb[userId] = { parfaits, bonus5, joues }
-  profils.forEach(p=>{ pts[p.id]={}; myCats.forEach(c=>pts[p.id][c]=0); detail[p.id]=[]; tb[p.id]={parfaits:0,bonus5:0,joues:0}; });
+  const tb = {};      // départage : tb[userId] = { global:{parfaits,bonus5,joues}, parCat:{cat:{...}} }
+  profils.forEach(p=>{ pts[p.id]={}; myCats.forEach(c=>pts[p.id][c]=0); detail[p.id]=[];
+    tb[p.id]={ global:{parfaits:0,bonus5:0,joues:0}, parCat:{} };
+    myCats.forEach(c=> tb[p.id].parCat[c]={parfaits:0,bonus5:0,joues:0});
+  });
 
   // points manches
   pronos.forEach(pr=>{
@@ -3313,12 +3316,13 @@ async function renderClassement(v){
       pts[pr.user_id][pr.categorie] += gain;
       const m = mancheById[pr.manche_id];
       detail[pr.user_id].push({ label:(m?m.nom:'Manche'), cat:pr.categorie, points:gain, ordre:(m?m.ordre:99) });
-      // stats de départage
+      // stats de départage (global + par catégorie)
       const bd = scoreBreakdown(pr, res);
       if(bd){
-        tb[pr.user_id].joues++;
-        if(bd.parfait>0) tb[pr.user_id].parfaits++;
-        if(bd.double5) tb[pr.user_id].bonus5++;
+        const g = tb[pr.user_id].global, pc = tb[pr.user_id].parCat[pr.categorie];
+        g.joues++; if(pc) pc.joues++;
+        if(bd.parfait>0){ g.parfaits++; if(pc) pc.parfaits++; }
+        if(bd.double5){ g.bonus5++; if(pc) pc.bonus5++; }
       }
     }
   });
@@ -3340,9 +3344,10 @@ async function renderClassement(v){
     const perCat = {}; myCats.forEach(c=> perCat[c]=pts[p.id][c]||0);
     const totalAll = myCats.reduce((s,c)=> s+perCat[c], 0);
     const total = cat==='global' ? totalAll : (perCat[cat]||0);
-    const t = tb[p.id] || {parfaits:0,bonus5:0,joues:0};
+    // compteurs de départage : globaux en vue Générale, sinon ceux de la catégorie
+    const src = cat==='global' ? tb[p.id].global : (tb[p.id].parCat[cat] || {parfaits:0,bonus5:0,joues:0});
     return { id:p.id, pseudo:p.pseudo, perCat, total, detail:detail[p.id],
-             parfaits:t.parfaits, bonus5:t.bonus5, joues:t.joues };
+             parfaits:src.parfaits, bonus5:src.bonus5, joues:src.joues };
   }).sort((a,b)=>{
     // cascade de départage : points > podiums parfaits > bonus 5e > manches jouées > pseudo
     if(b.total !== a.total) return b.total - a.total;
@@ -3517,12 +3522,13 @@ function revealDetail(container, r, cat, showHead){
   const total = items.reduce((s,d)=> s + (d.points||0), 0);
   const totCls = total>0?'':(total<0?'neg':'zero');
   const head = showHead ? `<div class="pd-head">${r.pseudo}</div>` : '';
+  const tieBanner = r.tieNote ? `<div class="det-tie">⚖️ À égalité de points : départagé grâce à <b>${r.tieNote}</b>.</div>` : '';
   if(!items.length){
-    container.innerHTML = head + `<div class="det-empty">Aucun point sur cette catégorie pour le moment.</div>`;
+    container.innerHTML = head + tieBanner + `<div class="det-empty">Aucun point sur cette catégorie pour le moment.</div>`;
     return;
   }
   // structure : gros total animé + lignes cachées
-  container.innerHTML = head +
+  container.innerHTML = head + tieBanner +
     `<div class="reveal-total"><span class="rt-num ${totCls}">0</span><span class="rt-lbl">points</span></div>
     <div class="rv-lines"></div>`;
   const numEl = container.querySelector('.rt-num');
