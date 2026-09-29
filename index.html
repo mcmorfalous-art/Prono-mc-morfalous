@@ -623,6 +623,26 @@ header::after{
 .admin-notif-btn .anb-ico{font-size:24px;flex-shrink:0}
 .admin-notif-btn .anb-txt{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;
   color:#fff;text-transform:uppercase;letter-spacing:.02em;text-align:left}
+.admin-notif-btn .anb-badge{margin-left:auto;background:var(--red);color:#fff;font-family:'Barlow Condensed',sans-serif;
+  font-weight:700;font-size:13px;min-width:24px;height:24px;border-radius:12px;display:flex;
+  align-items:center;justify-content:center;padding:0 7px;flex-shrink:0}
+
+/* admin : inscriptions en attente */
+.pending-list{display:flex;flex-direction:column;gap:10px}
+.pending-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:13px 15px;border-radius:12px;background:var(--night2);border:1px solid var(--line2)}
+.pending-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pending-pseudo{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:#fff;
+  text-transform:uppercase;letter-spacing:.02em}
+.pending-date{font-size:11.5px;color:var(--bone-dim)}
+.pending-actions{display:flex;gap:8px;flex-shrink:0}
+.pending-ok,.pending-no{padding:9px 14px;border-radius:9px;cursor:pointer;border:1px solid var(--line2);
+  background:var(--night);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;
+  text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.pending-ok{color:var(--green,#3cbe78);border-color:rgba(60,190,120,.4)}
+.pending-ok:hover{background:rgba(60,190,120,.12)}
+.pending-no{color:#ff8a80;border-color:rgba(226,59,46,.4)}
+.pending-no:hover{background:rgba(226,59,46,.1)}
 
 /* admin notifs : sélection des championnats à citer */
 .apush-champs-lbl{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;
@@ -1516,10 +1536,6 @@ function signupForm(){
       <label>Pseudo (visible au classement)</label>
       <input id="su_pseudo" type="text" maxlength="30" placeholder="Ton pseudo">
     </div>
-    <div class="row2">
-      <div class="field"><label>Prénom</label><input id="su_prenom" type="text" placeholder="Prénom"></div>
-      <div class="field"><label>Nom</label><input id="su_nom" type="text" placeholder="Nom"></div>
-    </div>
     <div class="field">
       <label>Email</label>
       <input id="su_email" type="email" autocomplete="email" placeholder="ton@email.fr">
@@ -1528,11 +1544,7 @@ function signupForm(){
       <label>Mot de passe</label>
       <input id="su_pwd" type="password" autocomplete="new-password" placeholder="6 caractères minimum">
     </div>
-    <div class="field">
-      <label>Code club</label>
-      <input id="su_code" type="text" placeholder="Code réservé aux licenciés">
-      <div class="hint">Ce code t'est communiqué par le club. Sans lui, pas d'inscription.</div>
-    </div>
+    <p class="hint">Ton compte sera validé par le club avant de pouvoir jouer.</p>
     <button class="btn" id="btnSignup">Créer mon compte</button>
   `;
 }
@@ -1545,10 +1557,9 @@ function showMsg(text, type){
 
 // ====== ACTIONS ======
 async function doSignup(){
-  const pseudo = val('su_pseudo'), prenom = val('su_prenom'), nom = val('su_nom');
-  const email = val('su_email'), pwd = val('su_pwd'), code = val('su_code');
+  const pseudo = val('su_pseudo');
+  const email = val('su_email'), pwd = val('su_pwd');
 
-  if(code !== CODE_CLUB) return showMsg("Code club incorrect. Demande-le au club.", 'err');
   if(pseudo.length < 2) return showMsg("Choisis un pseudo d'au moins 2 caractères.", 'err');
   if(!email.includes('@')) return showMsg("Entre un email valide.", 'err');
   if(pwd.length < 6) return showMsg("Le mot de passe doit faire au moins 6 caractères.", 'err');
@@ -1556,11 +1567,12 @@ async function doSignup(){
   const btn = document.getElementById('btnSignup');
   btn.disabled = true; showMsg("Création du compte…", 'ok');
 
-  // créer le compte Auth en passant pseudo/nom/prénom en métadonnées.
-  // Le profil est ensuite créé automatiquement côté base (trigger SQL).
+  // créer le compte Auth en passant le pseudo en métadonnée.
+  // Le profil est ensuite créé automatiquement côté base (trigger SQL),
+  // avec approuve=false par défaut : le compte attend la validation du club.
   const { data, error } = await sb.auth.signUp({
     email, password: pwd,
-    options: { data: { pseudo, nom, prenom } }
+    options: { data: { pseudo } }
   });
   if(error){ btn.disabled=false; return showMsg(traduitErreur(error.message), 'err'); }
 
@@ -1894,6 +1906,10 @@ async function renderHome(session){
     return renderRecreateProfil(session);
   }
   window._isAdmin = !!profil?.is_admin;
+  // compte pas encore validé par le club : écran d'attente (sauf admin)
+  if(!profil.is_admin && profil.approuve === false){
+    return renderPendingApproval(session, profil);
+  }
   // enregistre la dernière connexion (présence)
   markSeen();
   startPresence();
@@ -1904,6 +1920,27 @@ async function renderHome(session){
   renderInstallBanner();
   // pop-up des pronos non pariés qui ferment bientôt (une fois par session)
   setTimeout(()=> checkUnbetPronos(false), 800);
+}
+
+// écran affiché tant que le compte n'a pas été validé par un admin du club
+function renderPendingApproval(session, profil){
+  app.innerHTML = `
+    <div class="card" style="text-align:center;padding:32px 22px">
+      <div style="font-size:48px;margin-bottom:14px">⏳</div>
+      <div class="sec-title" style="justify-content:center">Compte en attente</div>
+      <p style="color:var(--bone-dim);font-size:14px;line-height:1.5;margin:12px 0 20px">
+        Salut <b style="color:var(--bone)">${profil.pseudo}</b> ! Ton compte a bien été créé,
+        il doit maintenant être validé par un membre du club avant que tu puisses pronostiquer.
+        Ça ne devrait pas tarder 🐺
+      </p>
+      <button class="btn-ghost" id="pendingLogout">Se déconnecter</button>
+    </div>
+  `;
+  hideSplash();
+  document.getElementById('pendingLogout').onclick = async ()=>{
+    await sb.auth.signOut();
+    location.reload();
+  };
 }
 
 // construit la coquille (topbar + burger) puis le contenu selon l'état
@@ -4771,18 +4808,30 @@ function showCMsg(t,type){ const m=document.getElementById('cmsg'); if(m){ m.tex
 let adminTab = 'resultats';
 
 async function renderAdmin(v){
+  // nombre de comptes en attente de validation (pour le badge)
+  let nbPending = 0;
+  try{
+    const { count } = await sb.from('profils').select('*', { count:'exact', head:true }).eq('approuve', false);
+    nbPending = count || 0;
+  }catch(e){}
+
   v.innerHTML = `
     <div class="card">
+      <button class="admin-notif-btn ${adminTab==='pending'?'on':''}" id="atPending">
+        <span class="anb-ico">👤</span>
+        <span class="anb-txt">${adminTab==='pending'?'← Retour à l\'admin':'Inscriptions en attente'}</span>
+        ${nbPending>0 && adminTab!=='pending' ? `<span class="anb-badge">${nbPending}</span>` : ''}
+      </button>
       <button class="admin-notif-btn ${adminTab==='notifs'?'on':''}" id="atNotif">
         <span class="anb-ico">📢</span>
         <span class="anb-txt">${adminTab==='notifs'?'← Retour à l\'admin':'Envoyer une notification au club'}</span>
       </button>
-      <div class="admin-champ-sel" id="adminChampSel" ${adminTab==='notifs'?'style="display:none"':''}>
+      <div class="admin-champ-sel" id="adminChampSel" ${(adminTab==='notifs'||adminTab==='pending')?'style="display:none"':''}>
         ${CHAMPS.map(c=>`<button class="acs-btn ${c===currentChamp?'active':''}" data-champ="${c}">
           <span class="acs-ico">${CHAMP_ICONS[c]||''}</span><span class="acs-lbl">${CHAMP_LABELS[c]||c}</span>
         </button>`).join('')}
       </div>
-      <div class="subnav" ${adminTab==='notifs'?'style="display:none"':''}>
+      <div class="subnav" ${(adminTab==='notifs'||adminTab==='pending')?'style="display:none"':''}>
         <button class="sub-btn ${adminTab==='resultats'?'active':''}" id="atRes">📝 Résultats</button>
         <button class="sub-btn ${adminTab==='pilotes'?'active':''}" id="atPil">🏍️ Pilotes</button>
       </div>
@@ -4800,9 +4849,56 @@ async function renderAdmin(v){
   const atRes = document.getElementById('atRes'); if(atRes) atRes.onclick = ()=>{ adminTab='resultats'; renderAdmin(v); };
   const atPil = document.getElementById('atPil'); if(atPil) atPil.onclick = ()=>{ adminTab='pilotes'; renderAdmin(v); };
   document.getElementById('atNotif').onclick = ()=>{ adminTab = (adminTab==='notifs') ? 'resultats' : 'notifs'; renderAdmin(v); };
+  document.getElementById('atPending').onclick = ()=>{ adminTab = (adminTab==='pending') ? 'resultats' : 'pending'; renderAdmin(v); };
   if(adminTab==='pilotes') return renderAdminPilotes(document.getElementById('adminBody'));
   if(adminTab==='notifs') return renderAdminNotifs(document.getElementById('adminBody'));
+  if(adminTab==='pending') return renderAdminPending(document.getElementById('adminBody'));
   return renderAdminResultats(document.getElementById('adminBody'));
+}
+
+// ====== ADMIN : validation des inscriptions en attente ======
+async function renderAdminPending(body){
+  body.innerHTML = `<div class="loading">Chargement…</div>`;
+  const { data, error } = await sb.from('profils').select('id,pseudo,created_at').eq('approuve', false).order('created_at', { ascending:false });
+  if(error){ body.innerHTML = `<div class="msg show err">Erreur : ${error.message}</div>`; return; }
+  const list = data || [];
+  if(!list.length){
+    body.innerHTML = `<p class="sec-sub">Aucune inscription en attente. Tous les comptes sont validés ✓</p>`;
+    return;
+  }
+  body.innerHTML = `
+    <p class="sec-sub">${list.length} compte${list.length>1?'s':''} en attente de validation.</p>
+    <div class="pending-list">
+      ${list.map(p=>`
+        <div class="pending-row" data-uid="${p.id}">
+          <div class="pending-info">
+            <span class="pending-pseudo">${p.pseudo}</span>
+            <span class="pending-date">Inscrit ${frDate(p.created_at)}</span>
+          </div>
+          <div class="pending-actions">
+            <button class="pending-ok" data-uid="${p.id}">✓ Valider</button>
+            <button class="pending-no" data-uid="${p.id}">✗ Refuser</button>
+          </div>
+        </div>`).join('')}
+    </div>
+  `;
+  body.querySelectorAll('.pending-ok').forEach(b=>{
+    b.onclick = async ()=>{
+      b.disabled = true;
+      const { error } = await sb.from('profils').update({ approuve:true }).eq('id', b.dataset.uid);
+      if(error){ alert('Erreur : '+error.message); b.disabled=false; return; }
+      renderAdminPending(body);
+    };
+  });
+  body.querySelectorAll('.pending-no').forEach(b=>{
+    b.onclick = async ()=>{
+      if(!confirm("Refuser et supprimer ce compte en attente ? Cette action est irréversible.")) return;
+      b.disabled = true;
+      const { error } = await sb.from('profils').delete().eq('id', b.dataset.uid);
+      if(error){ alert('Erreur : '+error.message); b.disabled=false; return; }
+      renderAdminPending(body);
+    };
+  });
 }
 
 // ====== ADMIN : envoi de notifications au club ======
