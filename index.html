@@ -4123,6 +4123,13 @@ function frDate(d){
   const dt = new Date(d+'T12:00:00');
   return dt.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'short'});
 }
+// pour un timestamp complet (ex. created_at de Supabase), pas une simple date
+function frDateTime(d){
+  if(!d) return '';
+  const dt = new Date(d);
+  if(isNaN(dt.getTime())) return '';
+  return dt.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'});
+}
 
 // ----- bloc stats / favoris pour le MX des Nations -----
 function mxdnStatsBlock(openByDefault){
@@ -4873,7 +4880,7 @@ async function renderAdminPending(body){
         <div class="pending-row" data-uid="${p.id}">
           <div class="pending-info">
             <span class="pending-pseudo">${p.pseudo}</span>
-            <span class="pending-date">Inscrit ${frDate(p.created_at)}</span>
+            <span class="pending-date">Inscrit ${frDateTime(p.created_at)}</span>
           </div>
           <div class="pending-actions">
             <button class="pending-ok" data-uid="${p.id}">✓ Valider</button>
