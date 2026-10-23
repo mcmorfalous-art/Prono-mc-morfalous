@@ -268,6 +268,19 @@ header::after{
 .home-bref .hb-item b{color:#fff;font-weight:700}
 .home-bref .hb-empty{font-size:12.5px;color:var(--bone-dim);font-style:italic}
 
+/* bouton Classement général (accueil) */
+.home-gen{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:13px 15px;border-radius:15px;margin-bottom:16px;
+  background:linear-gradient(135deg,rgba(240,190,70,.12),var(--night2) 65%);border:1px solid rgba(240,190,70,.4);cursor:pointer;
+  transition:transform .12s ease,border-color .12s ease;animation:fadeUp .45s ease both}
+.home-gen:hover{transform:translateY(-2px);border-color:var(--gold,#f0be46)}
+.home-gen .hg-ico{font-size:22px;flex-shrink:0}
+.home-gen .hg-txt{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+.home-gen .hg-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:#fff;
+  text-transform:uppercase;letter-spacing:.03em}
+.home-gen .hg-sub{font-size:12px;color:var(--bone-dim)}
+.home-gen .hg-more{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--gold,#f0be46);
+  text-transform:uppercase;letter-spacing:.03em;font-weight:700;flex-shrink:0}
+
 /* actus dans la page En bref */
 .ac-row{display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
 .ac-row:last-child{border-bottom:none}
@@ -2047,6 +2060,11 @@ async function renderChampPicker(){
   host.innerHTML = `
     ${alertHtml}
     ${brefHtml}
+    <button class="home-gen" data-act="clgen">
+      <span class="hg-ico">🏆</span>
+      <span class="hg-txt"><span class="hg-title">Classement général</span><span class="hg-sub">Tous les championnats cumulés</span></span>
+      <span class="hg-more">Voir →</span>
+    </button>
     <div class="home-section-lbl">Choisis ton championnat <span class="hsl-saison">· Saison 2026</span></div>
     <div class="champ-cards">
       ${orderedChamps.map((c,i)=>`
@@ -2068,6 +2086,8 @@ async function renderChampPicker(){
   setupScrollHint();
   const brefBtn = host.querySelector('.home-bref');
   if(brefBtn) brefBtn.onclick = ()=> openGlobalView('enbref');
+  const genBtn = host.querySelector('.home-gen');
+  if(genBtn) genBtn.onclick = ()=> openGlobalView('clgen');
 
   // clic sur la bannière "ça ferme bientôt" → entre dans le championnat puis ouvre la manche urgente
   const alertBtn = host.querySelector('.home-alert');
@@ -2193,6 +2213,7 @@ function openMenu(){
         <span>Menu du club</span>
         <button class="menu-close" id="menuClose">×</button>
       </div>
+      <button class="menu-item" data-act="clgen"><span class="mi-ico">🏆</span> Classement général</button>
       <button class="menu-item" data-act="messtats"><span class="mi-ico">📊</span> Mes stats</button>
       <button class="menu-item" data-act="unbet"><span class="mi-ico">⏰</span> Mes pronos à jouer</button>
       <button class="menu-item" data-act="enbref"><span class="mi-ico">📰</span> En bref</button>
@@ -2963,6 +2984,7 @@ function switchView(view){
   if(view === 'cluball'){ return renderClubAll(v); }
   if(view === 'messtats'){ return renderMesStats(v); }
   if(view === 'enbref'){ return renderEnBref(v); }
+  if(view === 'clgen'){ return renderClassementGeneral(v); }
   return renderPronos(v);
 }
 
@@ -3819,6 +3841,156 @@ function rankRow(r, i, cat, myCats){
     <td class="rk-total">${r.total}</td>
   </tr>
   <tr class="detail-row"><td colspan="${colspan}"><div class="det-wrap">${detailHtml}</div></td></tr>`;
+}
+
+// ====== CLASSEMENT GÉNÉRAL (tous les championnats cumulés) ======
+// lit toute une table par pages de 1000 (limite par défaut de Supabase)
+async function fetchAllRows(table){
+  const PAGE = 1000;
+  let from = 0, out = [];
+  for(;;){
+    const { data, error } = await sb.from(table).select('*').order('id').range(from, from+PAGE-1);
+    if(error){
+      if(from===0){ const r = await sb.from(table).select('*'); return r.data||[]; }
+      break;
+    }
+    out = out.concat(data||[]);
+    if(!data || data.length<PAGE) break;
+    from += PAGE;
+  }
+  return out;
+}
+
+async function renderClassementGeneral(v){
+  v.innerHTML = `<div class="card"><div class="loading">Calcul du classement général…</div></div>`;
+  const [profilsR, pronos, resultats, pchamp, rchamp, manchesR] = await Promise.all([
+    sb.from('profils').select('id,pseudo,avatar'),
+    fetchAllRows('pronos'),
+    fetchAllRows('resultats'),
+    fetchAllRows('pronos_championnat'),
+    fetchAllRows('resultat_championnat'),
+    sb.from('manches').select('id,championnat,annulee'),
+  ]);
+  const profils = profilsR.data||[];
+  profils.forEach(p=>{ if(p.avatar) AVATARS[p.id]=p.avatar; });
+  const mancheById = {};
+  (manchesR.data||[]).filter(m=>!m.annulee).forEach(m=> mancheById[m.id]=m);
+
+  const resByKey = {};
+  resultats.forEach(r=>{ if(mancheById[r.manche_id]) resByKey[r.manche_id+'-'+r.categorie]=r; });
+  const rchampByKey = {};
+  rchamp.forEach(r=> rchampByKey[r.championnat+'-'+r.categorie]=r);
+
+  // cumul par joueur : points par championnat + compteurs de départage
+  const R = {};
+  profils.forEach(p=> R[p.id]={ parChamp:{}, parfaits:0, bonus5:0, joues:0 });
+  const add = (uid, champ, gain)=>{
+    const u = R[uid]; if(!u) return;
+    u.parChamp[champ] = (u.parChamp[champ]||0) + gain;
+  };
+  pronos.forEach(pr=>{
+    const m = mancheById[pr.manche_id]; if(!m || !R[pr.user_id]) return;
+    if(!(CHAMP_CATS[m.championnat]||[]).includes(pr.categorie)) return;
+    const res = resByKey[pr.manche_id+'-'+pr.categorie]; if(!res) return;
+    add(pr.user_id, m.championnat, scoreManche(pr,res));
+    const bd = scoreBreakdown(pr,res);
+    if(bd){
+      const u = R[pr.user_id];
+      u.joues++;
+      if(bd.parfait>0) u.parfaits++;
+      if(bd.double5) u.bonus5++;
+    }
+  });
+  pchamp.forEach(pc=>{
+    if(!pc.valide || !R[pc.user_id]) return;
+    if(!(CHAMP_CATS[pc.championnat]||[]).includes(pc.categorie)) return;
+    const res = rchampByKey[pc.championnat+'-'+pc.categorie]; if(!res) return;
+    add(pc.user_id, pc.championnat, scoreChamp(pc,res));
+  });
+
+  const ranked = profils.map(p=>{
+    const u = R[p.id];
+    const detail = CHAMPS.filter(c=> u.parChamp[c]!==undefined)
+      .map((c,i)=>({ label:(CHAMP_LABELS[c]||c), cat:'', points:u.parChamp[c], ordre:i }));
+    const total = detail.reduce((s,d)=> s+d.points, 0);
+    return { id:p.id, pseudo:p.pseudo||'Joueur', total, detail,
+             parfaits:u.parfaits, bonus5:u.bonus5, joues:u.joues };
+  }).sort((a,b)=>{
+    // même cascade que les classements par championnat
+    if(b.total !== a.total) return b.total - a.total;
+    if(b.parfaits !== a.parfaits) return b.parfaits - a.parfaits;
+    if(b.bonus5 !== a.bonus5) return b.bonus5 - a.bonus5;
+    if(b.joues !== a.joues) return b.joues - a.joues;
+    return (a.pseudo||'').localeCompare(b.pseudo||'');
+  });
+
+  ranked.forEach((r, i)=>{
+    r.tieNote = null;
+    const prev = ranked[i-1], next = ranked[i+1];
+    const egalPrev = prev && prev.total===r.total;
+    const egalNext = next && next.total===r.total;
+    if(!egalPrev && !egalNext) return;
+    const rival = egalPrev ? prev : next;
+    if(r.parfaits !== rival.parfaits) r.tieNote = `${r.parfaits} podium${r.parfaits>1?'s':''} parfait${r.parfaits>1?'s':''}`;
+    else if(r.bonus5 !== rival.bonus5) r.tieNote = `${r.bonus5} bonus 5e trouvé${r.bonus5>1?'s':''}`;
+    else if(r.joues !== rival.joues) r.tieNote = `${r.joues} prono${r.joues>1?'s':''} joué${r.joues>1?'s':''}`;
+    else r.tieNote = `ordre alphabétique`;
+  });
+
+  // championnats déjà comptabilisés (au moins un point attribué)
+  const champsComptes = CHAMPS.filter(c=> ranked.some(r=> r.detail.some(d=> d.label===(CHAMP_LABELS[c]||c))));
+  const hasAny = champsComptes.length>0;
+
+  v.innerHTML = `
+    <div class="card">
+      <div class="sec-title">🏆 Classement général</div>
+      <p class="sec-sub">${hasAny
+        ? `Tous les pronos cumulés : ${champsComptes.map(c=>CHAMP_LABELS[c]||c).join(', ')}.`
+        : `Tous les championnats cumulés.`}</p>
+      ${!hasAny ? '<div class="placeholder">Aucun résultat saisi pour le moment.</div>'
+      : `${podiumTop3(ranked)}
+         <div class="pod-detail" id="podDetail"></div>
+         <div class="rank-hint">Touche un joueur pour voir ses points par championnat</div>
+         ${ranked.length>3 ? `<table class="rank-table">
+          <thead><tr><th>#</th><th>Pilote</th><th>Pts</th></tr></thead>
+          <tbody>${ranked.slice(3).map((r,i)=>rankRow(r,i+3,'global',null)).join('')}</tbody>
+        </table>` : ''}`}
+    </div>
+  `;
+
+  v.querySelectorAll('.rank-row').forEach(row=>{
+    row.onclick = ()=>{
+      const det = row.nextElementSibling;
+      if(det && det.classList.contains('detail-row')){
+        const opening = !det.classList.contains('open');
+        det.classList.toggle('open');
+        if(opening){
+          const r = ranked.find(x=> String(x.id)===String(row.dataset.uid));
+          const wrap = det.querySelector('.det-wrap');
+          if(r && wrap) revealDetail(wrap, r, 'global', false);
+        }
+      }
+    };
+  });
+  const podBox = v.querySelector('#podDetail');
+  v.querySelectorAll('.podium-top .pod-col[data-uid]').forEach(colEl=>{
+    colEl.onclick = ()=>{
+      const r = ranked.find(x=> String(x.id)===String(colEl.dataset.uid));
+      if(!r || !podBox) return;
+      const already = colEl.classList.contains('sel');
+      v.querySelectorAll('.podium-top .pod-col').forEach(c=>c.classList.remove('sel'));
+      if(already){ podBox.classList.remove('open'); podBox.innerHTML=''; return; }
+      colEl.classList.add('sel');
+      podBox.classList.add('open');
+      revealDetail(podBox, r, 'global');
+    };
+  });
+  const drops = v.querySelectorAll('.pod-drop');
+  if(drops.length){
+    drops.forEach(d=>d.classList.remove('play'));
+    requestAnimationFrame(()=>{ requestAnimationFrame(()=>{ drops.forEach(d=>d.classList.add('play')); }); });
+    setTimeout(()=>{ drops.forEach(d=>{ if(!d.classList.contains('play')) d.classList.add('play'); }); }, 60);
+  }
 }
 
 // ====== VUE STATS (données du jeu) ======
