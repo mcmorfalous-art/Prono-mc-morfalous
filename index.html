@@ -1531,8 +1531,8 @@ function renderAuth(){
 function loginForm(){
   return `
     <div class="field">
-      <label>Email</label>
-      <input id="li_email" type="email" autocomplete="email" placeholder="ton@email.fr">
+      <label>Pseudo</label>
+      <input id="li_id" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Ton pseudo">
     </div>
     <div class="field">
       <label>Mot de passe</label>
@@ -1550,14 +1550,10 @@ function signupForm(){
       <input id="su_pseudo" type="text" maxlength="30" placeholder="Ton pseudo">
     </div>
     <div class="field">
-      <label>Email</label>
-      <input id="su_email" type="email" autocomplete="email" placeholder="ton@email.fr">
-    </div>
-    <div class="field">
       <label>Mot de passe</label>
       <input id="su_pwd" type="password" autocomplete="new-password" placeholder="6 caractères minimum">
     </div>
-    <p class="hint">Ton compte sera validé par le club avant de pouvoir jouer.</p>
+    <p class="hint">Pas d'email à donner : tu crées ton compte et tu pronostiques tout de suite. 🏁<br>Note bien ton mot de passe, on ne peut pas le renvoyer par email.</p>
     <button class="btn" id="btnSignup">Créer mon compte</button>
   `;
 }
@@ -1569,25 +1565,47 @@ function showMsg(text, type){
 }
 
 // ====== ACTIONS ======
+// Pas d'email demandé : on fabrique une adresse technique à partir du pseudo
+// (Supabase Auth exige un email). Aucun mail n'est jamais envoyé à cette adresse.
+const AUTH_EMAIL_DOMAIN = 'mc-morfalous.fr';
+function pseudoToEmail(pseudo){
+  let s = String(pseudo||'').normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+  if(!s) s = 'u' + Array.from(String(pseudo||'')).map(c=>c.codePointAt(0).toString(16)).join('');
+  return `${s.slice(0,40)}.prono@${AUTH_EMAIL_DOMAIN}`;
+}
+// ce que tape le joueur : un email (anciens comptes) ou un pseudo (nouveaux comptes)
+function loginEmailFrom(id){ return id.includes('@') ? id : pseudoToEmail(id); }
+
 async function doSignup(){
-  const pseudo = val('su_pseudo');
-  const email = val('su_email'), pwd = val('su_pwd');
+  const pseudo = val('su_pseudo'), pwd = val('su_pwd');
 
   if(pseudo.length < 2) return showMsg("Choisis un pseudo d'au moins 2 caractères.", 'err');
-  if(!email.includes('@')) return showMsg("Entre un email valide.", 'err');
+  if(pseudo.includes('@')) return showMsg("Ton pseudo ne peut pas contenir de @.", 'err');
   if(pwd.length < 6) return showMsg("Le mot de passe doit faire au moins 6 caractères.", 'err');
 
   const btn = document.getElementById('btnSignup');
   btn.disabled = true; showMsg("Création du compte…", 'ok');
 
-  // créer le compte Auth en passant le pseudo en métadonnée.
-  // Le profil est ensuite créé automatiquement côté base (trigger SQL),
-  // avec approuve=false par défaut : le compte attend la validation du club.
+  // pseudo déjà pris par un ancien compte (créé avec un vrai email) ?
+  // nécessite la fonction SQL pseudo_dispo ; si elle n'existe pas, on ignore ce test.
+  try{
+    const { data: dispo, error: rpcErr } = await sb.rpc('pseudo_dispo', { p: pseudo });
+    if(!rpcErr && dispo === false){ btn.disabled=false; return showMsg("Ce pseudo est déjà pris, choisis-en un autre.", 'err'); }
+  }catch(_){}
+
+  const email = pseudoToEmail(pseudo);
+  // le pseudo passe en métadonnée ; le profil est créé côté base (trigger SQL)
   const { data, error } = await sb.auth.signUp({
     email, password: pwd,
     options: { data: { pseudo } }
   });
-  if(error){ btn.disabled=false; return showMsg(traduitErreur(error.message), 'err'); }
+  if(error){
+    btn.disabled=false;
+    if(/already registered|already been registered/i.test(error.message))
+      return showMsg("Ce pseudo est déjà pris, choisis-en un autre.", 'err');
+    return showMsg(traduitErreur(error.message), 'err');
+  }
 
   // confirmation email désactivée : on connecte directement
   if(data.session){
@@ -1601,26 +1619,28 @@ async function doSignup(){
 }
 
 async function doLogin(){
-  const email = val('li_email'), pwd = val('li_pwd');
-  if(!email || !pwd) return showMsg("Entre ton email et ton mot de passe.", 'err');
+  const id = val('li_id'), pwd = val('li_pwd');
+  if(!id || !pwd) return showMsg("Entre ton pseudo et ton mot de passe.", 'err');
   const btn = document.getElementById('btnLogin');
   btn.disabled = true; showMsg("Connexion…", 'ok');
-  const { error } = await sb.auth.signInWithPassword({ email, password: pwd });
+  const { error } = await sb.auth.signInWithPassword({ email: loginEmailFrom(id), password: pwd });
   if(error){ btn.disabled=false; return showMsg(traduitErreur(error.message), 'err'); }
   boot();
 }
 
 async function doForgot(){
-  const email = val('li_email');
-  if(!email) return showMsg("Entre d'abord ton email ci-dessus, puis reclique.", 'err');
-  const { error } = await sb.auth.resetPasswordForEmail(email);
+  const id = val('li_id');
+  if(!id) return showMsg("Entre d'abord ton pseudo (ou ton email) ci-dessus, puis reclique.", 'err');
+  // compte sans email : pas de réinitialisation automatique possible
+  if(!id.includes('@')) return showMsg("Ton compte n'a pas d'email : écris au club (mcmorfalous@gmail.com) avec ton pseudo, on te remet un mot de passe. Si ton compte date d'avant, entre ton email à la place du pseudo.", 'err');
+  const { error } = await sb.auth.resetPasswordForEmail(id, { redirectTo: location.origin + location.pathname });
   if(error) return showMsg(traduitErreur(error.message), 'err');
   showMsg("Email de réinitialisation envoyé (vérifie tes spams).", 'ok');
 }
 
 function traduitErreur(m){
   if(m.includes('already registered')) return "Cet email a déjà un compte. Connecte-toi.";
-  if(m.includes('Invalid login')) return "Email ou mot de passe incorrect.";
+  if(m.includes('Invalid login')) return "Pseudo ou mot de passe incorrect. (Si ton compte date d'avant, connecte-toi avec ton email.)";
   if(m.includes('Email not confirmed')) return "Ton email n'est pas encore confirmé. Clique sur le lien reçu par mail (vérifie tes spams), puis reconnecte-toi.";
   if(m.includes('rate limit')) return "Trop de tentatives, réessaie dans un moment.";
   return m;
@@ -1629,6 +1649,8 @@ function traduitErreur(m){
 const val = id => (document.getElementById(id)?.value || '').trim();
 
 // ====== ÉCRAN CONNECTÉ ======
+// validation des nouveaux comptes par l'admin : désactivée (inscription libre). Remettre true pour la réactiver.
+const REQUIRE_APPROVAL = false;
 let currentProfil = null;
 let currentSession = null;
 let currentChamp = 'AMA'; // championnat sélectionné (valeur interne)
@@ -1920,7 +1942,7 @@ async function renderHome(session){
   }
   window._isAdmin = !!profil?.is_admin;
   // compte pas encore validé par le club : écran d'attente (sauf admin)
-  if(!profil.is_admin && profil.approuve === false){
+  if(REQUIRE_APPROVAL && !profil.is_admin && profil.approuve === false){
     return renderPendingApproval(session, profil);
   }
   // enregistre la dernière connexion (présence)
@@ -4989,18 +5011,18 @@ let adminTab = 'resultats';
 async function renderAdmin(v){
   // nombre de comptes en attente de validation (pour le badge)
   let nbPending = 0;
-  try{
+  if(REQUIRE_APPROVAL) try{
     const { count } = await sb.from('profils').select('*', { count:'exact', head:true }).eq('approuve', false);
     nbPending = count || 0;
   }catch(e){}
 
   v.innerHTML = `
     <div class="card">
-      <button class="admin-notif-btn ${adminTab==='pending'?'on':''}" id="atPending">
+      ${REQUIRE_APPROVAL ? `<button class="admin-notif-btn ${adminTab==='pending'?'on':''}" id="atPending">
         <span class="anb-ico">👤</span>
         <span class="anb-txt">${adminTab==='pending'?'← Retour à l\'admin':'Inscriptions en attente'}</span>
         ${nbPending>0 && adminTab!=='pending' ? `<span class="anb-badge">${nbPending}</span>` : ''}
-      </button>
+      </button>` : ''}
       <button class="admin-notif-btn ${adminTab==='notifs'?'on':''}" id="atNotif">
         <span class="anb-ico">📢</span>
         <span class="anb-txt">${adminTab==='notifs'?'← Retour à l\'admin':'Envoyer une notification au club'}</span>
@@ -5028,7 +5050,8 @@ async function renderAdmin(v){
   const atRes = document.getElementById('atRes'); if(atRes) atRes.onclick = ()=>{ adminTab='resultats'; renderAdmin(v); };
   const atPil = document.getElementById('atPil'); if(atPil) atPil.onclick = ()=>{ adminTab='pilotes'; renderAdmin(v); };
   document.getElementById('atNotif').onclick = ()=>{ adminTab = (adminTab==='notifs') ? 'resultats' : 'notifs'; renderAdmin(v); };
-  document.getElementById('atPending').onclick = ()=>{ adminTab = (adminTab==='pending') ? 'resultats' : 'pending'; renderAdmin(v); };
+  const atPendingBtn = document.getElementById('atPending');
+  if(atPendingBtn) atPendingBtn.onclick = ()=>{ adminTab = (adminTab==='pending') ? 'resultats' : 'pending'; renderAdmin(v); };
   if(adminTab==='pilotes') return renderAdminPilotes(document.getElementById('adminBody'));
   if(adminTab==='notifs') return renderAdminNotifs(document.getElementById('adminBody'));
   if(adminTab==='pending') return renderAdminPending(document.getElementById('adminBody'));
@@ -6176,9 +6199,45 @@ function teardownChat(){
 }
 
 // ====== DÉMARRAGE ======
+// ====== RÉINITIALISATION DU MOT DE PASSE (lien reçu par email, comptes avec email) ======
+let _recoveryMode = /type=recovery/.test(window.location.hash || '');
+function openResetScreen(){
+  _recoveryMode = true;
+  hideSplash();
+  app.innerHTML = `
+    <div class="card">
+      <div class="sec-title" style="font-size:18px">🔑 Nouveau mot de passe</div>
+      <p class="sec-sub">Choisis ton nouveau mot de passe.</p>
+      <div class="field">
+        <label>Nouveau mot de passe</label>
+        <input id="rs_pwd" type="password" autocomplete="new-password" placeholder="6 caractères minimum">
+      </div>
+      <div class="field">
+        <label>Confirmer</label>
+        <input id="rs_pwd2" type="password" autocomplete="new-password" placeholder="Retape-le">
+      </div>
+      <button class="btn" id="btnReset">Valider</button>
+      <div class="msg" id="msg"></div>
+    </div>`;
+  document.getElementById('btnReset').onclick = async ()=>{
+    const a = val('rs_pwd'), b = val('rs_pwd2');
+    if(a.length < 6) return showMsg("Le mot de passe doit faire au moins 6 caractères.", 'err');
+    if(a !== b) return showMsg("Les deux mots de passe ne sont pas identiques.", 'err');
+    const btn = document.getElementById('btnReset'); btn.disabled = true;
+    const { error } = await sb.auth.updateUser({ password: a });
+    if(error){ btn.disabled = false; return showMsg(traduitErreur(error.message), 'err'); }
+    showMsg("Mot de passe changé ✅", 'ok');
+    _recoveryMode = false;
+    history.replaceState(null, '', location.pathname);
+    setTimeout(boot, 900);
+  };
+}
+if(sb) sb.auth.onAuthStateChange((event)=>{ if(event === 'PASSWORD_RECOVERY') openResetScreen(); });
+
 async function boot(){
   if(!sb) return;
   checkAlreadyInstalled(); // masque la bannière si l'appli est déjà installée
+  if(_recoveryMode){ return openResetScreen(); }
   const { data:{ session } } = await sb.auth.getSession();
   if(session){ renderHome(session); }
   else { renderAuth(); }
